@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>コネクトフォー - Connect Four</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        p1: { DEFAULT: '#f43f5e', dark: '#be123c', glow: '#fda4af' },
+                        p2: { DEFAULT: '#eab308', dark: '#a16207', glow: '#fef08a' }
+                    },
+                    animation: {
+                        'win-pulse': 'winPulse 1.2s infinite ease-in-out',
+                        'float': 'float 3s infinite ease-in-out',
+                    },
+                    keyframes: {
+                        winPulse: {
+                            '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 15px rgba(255,255,255,0.8)' },
+                            '50%': { transform: 'scale(1.12)', boxShadow: '0 0 25px rgba(255,255,255,1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-6px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+        }
+        
+        .board-shadow {
+            box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.8), inset 0 2px 6px rgba(255, 255, 255, 0.2);
+        }
+
+        .cell-hole {
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.8), 0 1px 2px rgba(255, 255, 255, 0.1);
+        }
+
+        .disc-red {
+            background: radial-gradient(circle at 35% 35%, #fb7185, #e11d48 60%, #9f1239 100%);
+            box-shadow: 0 4px 10px rgba(225, 29, 72, 0.4), inset 0 -3px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .disc-yellow {
+            background: radial-gradient(circle at 35% 35%, #fef08a, #eab308 60%, #854d0e 100%);
+            box-shadow: 0 4px 10px rgba(234, 179, 8, 0.4), inset 0 -3px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .ghost-red {
+            background: radial-gradient(circle at 35% 35%, rgba(251, 113, 133, 0.6), rgba(225, 29, 72, 0.5));
+            border: 2px dashed rgba(251, 113, 133, 0.8);
+        }
+
+        .ghost-yellow {
+            background: radial-gradient(circle at 35% 35%, rgba(254, 240, 138, 0.6), rgba(234, 179, 8, 0.5));
+            border: 2px dashed rgba(254, 240, 138, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between items-center p-3 sm:p-6 select-none overflow-x-hidden">
+
+    <!-- ヘッダーエリア -->
+    <header class="w-full max-w-2xl flex justify-between items-center mb-3">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center shadow-lg shadow-rose-950/40">
+                <i class="fa-solid me-0 fa-table-cells text-xl text-slate-950"></i>
+            </div>
+            <div>
+                <h1 class="text-xl sm:text-2xl font-black tracking-wider bg-gradient-to-r from-rose-400 via-amber-300 to-yellow-400 bg-clip-text text-transparent">
+                    コネクトフォー
+                </h1>
+                <p class="text-xs text-slate-400 hidden sm:block">4つのコマを縦・横・斜めに並べよう！</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- 効果音トグル -->
+            <button id="soundToggleBtn" title="音量の切替" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center">
+                <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+            </button>
+            <!-- ルール説明ボタン -->
+            <button id="rulesBtn" title="ルールを見る" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- モード ＆ 設定バー -->
+    <div class="w-full max-w-2xl bg-slate-900/90 backdrop-blur border border-slate-800 rounded-2xl p-2.5 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+        <!-- 対戦モード選択 -->
+        <div class="flex bg-slate-950 p-1 rounded-xl w-full sm:w-auto">
+            <button id="modePvP" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-indigo-600 text-white shadow">
+                <i class="fa-solid fa-user-group"></i> 2人対戦
+            </button>
+            <button id="modeAI" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-robot"></i> VS AI
+            </button>
+        </div>
+
+        <!-- AI詳細設定 (AIモード時のみ表示) -->
+        <div id="aiSettingsContainer" class="hidden flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+            <!-- 手番選択（先攻 / 後攻） -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-400 font-medium">手番:</span>
+                <div class="flex bg-slate-950 p-1 rounded-xl">
+                    <button id="turnFirst" class="turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-400 transition">先攻 (赤)</button>
+                    <button id="turnSecond" class="turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white">後攻 (黄)</button>
+                </div>
+            </div>
+
+            <!-- AI難易度選択 -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-slate-400 font-medium">難易度:</span>
+                <div class="flex bg-slate-950 p-1 rounded-xl">
+                    <button data-diff="easy" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white">かんたん</button>
+                    <button data-diff="medium" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition">ふつう</button>
+                    <button data-diff="hard" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white">むずかしい</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ領域 -->
+    <main class="w-full max-w-2xl flex flex-col items-center gap-4">
+        
+        <!-- ターン indicator / ステータス表示 -->
+        <div class="w-full flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-2xl px-4 py-3">
+            <!-- プレイヤー1（赤コマ） -->
+            <div id="p1Card" class="flex items-center gap-3 transition-transform duration-200">
+                <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-full disc-red flex-shrink-0"></div>
+                <div>
+                    <div class="text-xs sm:text-sm font-bold text-slate-200" id="p1Label">プレイヤー1</div>
+                    <div class="text-[10px] sm:text-xs text-rose-400 font-semibold" id="p1Sub">赤コマ (先攻)</div>
+                </div>
+            </div>
+
+            <!-- 現在のターン状態表示 -->
+            <div id="statusBadge" class="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 text-amber-300 animate-pulse">
+                <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                <span id="statusText">プレイヤー1の番</span>
+            </div>
+
+            <!-- プレイヤー2 / AI（黄コマ） -->
+            <div id="p2Card" class="flex items-center gap-3 transition-transform duration-200 opacity-50">
+                <div class="text-right">
+                    <div class="text-xs sm:text-sm font-bold text-slate-200" id="p2Label">プレイヤー2</div>
+                    <div class="text-[10px] sm:text-xs text-amber-400 font-semibold" id="p2Sub">黄コマ (後攻)</div>
+                </div>
+                <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-full disc-yellow flex-shrink-0"></div>
+            </div>
+        </div>
+
+        <!-- スコアボード -->
+        <div class="grid grid-cols-3 w-full gap-2 text-center">
+            <div class="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2">
+                <div class="text-[10px] text-slate-400 font-medium" id="p1ScoreLabel">P1 (赤) 勝利</div>
+                <div id="scoreP1" class="text-lg sm:text-xl font-black text-rose-400">0</div>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2">
+                <div class="text-[10px] text-slate-400 font-medium">引き分け</div>
+                <div id="scoreTies" class="text-lg sm:text-xl font-black text-slate-300">0</div>
+            </div>
+            <div class="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2">
+                <div class="text-[10px] text-slate-400 font-medium" id="p2ScoreLabel">P2 (黄) 勝利</div>
+                <div id="scoreP2" class="text-lg sm:text-xl font-black text-amber-400">0</div>
+            </div>
+        </div>
+
+        <!-- コネクトフォー ボードコンテナ -->
+        <div class="w-full relative flex flex-col items-center">
+            
+            <!-- 落下プレビュー -->
+            <div id="previewRow" class="grid grid-cols-7 w-full max-w-lg mb-1 h-8 sm:h-10 px-2">
+            </div>
+
+            <!-- ゲーム盤本体 (6行 x 7列) -->
+            <div id="boardContainer" class="w-full max-w-lg aspect-[7/6] bg-gradient-to-b from-blue-600 via-blue-700 to-indigo-900 rounded-2xl sm:rounded-3xl p-2 sm:p-3 board-shadow border-4 border-blue-500/40 relative">
+                <div id="boardGrid" class="grid grid-cols-7 h-full w-full gap-1.5 sm:gap-2">
+                </div>
+            </div>
+        </div>
+
+        <!-- コントロールボタン -->
+        <div class="flex items-center justify-center gap-3 mt-1 w-full">
+            <button id="undoBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs sm:text-sm font-semibold text-slate-300 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-rotate-left"></i> 待った (Undo)
+            </button>
+            <button id="resetBtn" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-950/50 transition flex items-center gap-2">
+                <i class="fa-solid fa-arrows-rotate"></i> 盤面リセット
+            </button>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="mt-6 text-center text-slate-500 text-xs">
+        Connect Four Game &copy; 2026 - HTML5 Web Application
+    </footer>
+
+    <!-- 勝者モーダル -->
+    <div id="winnerModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform scale-90 transition-transform duration-300 relative overflow-hidden" id="modalCard">
+            <div class="absolute -top-12 -left-12 w-32 h-32 bg-rose-500/20 rounded-full blur-2xl"></div>
+            <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl"></div>
+
+            <div id="winnerIconContainer" class="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg animate-float">
+                <i class="fa-solid fa-trophy text-amber-300"></i>
+            </div>
+
+            <h2 id="winnerTitle" class="text-2xl font-black text-white mb-1">勝利！</h2>
+            <p id="winnerSub" class="text-sm text-slate-400 mb-6">4つ並びました！</p>
+
+            <div class="flex flex-col gap-2">
+                <button id="modalPlayAgainBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 via-amber-500 to-yellow-500 text-slate-950 font-black text-sm shadow-lg hover:brightness-110 transition">
+                    もう一度遊ぶ
+                </button>
+                <button id="modalCloseBtn" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition">
+                    盤面を確認する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ルール解説モーダル -->
+    <div id="rulesModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-300 text-sm">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-indigo-400"></i> ルール解説
+                </h3>
+                <button id="closeRulesBtn" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <ul class="space-y-2.5 list-disc list-inside text-slate-300">
+                <li>赤コマ（先攻）と黄コマ（後攻）が交互にコマを落とします。</li>
+                <li>コマは重力に従い、選択した列の一番下まで移動します。</li>
+                <li><strong class="text-rose-400">縦・横・斜め</strong>のいずれかにコマを<strong class="text-amber-300">4つ連続</strong>で並べた方の勝利です。</li>
+                <li>42マスすべて埋まっても4つ並ばない場合は引き分けとなります。</li>
+                <li>VS AIモードでは先攻（赤）か後攻（黄）かを自由に選ぶことができます。</li>
+            </ul>
+            <button id="confirmRulesBtn" class="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition">
+                理解しました！
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playDrop() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(380, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.12);
+                
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playWin() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    
+                    const startTime = this.ctx.currentTime + idx * 0.09;
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(0.25, startTime + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.35);
+                });
+            }
+
+            playClick() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(250, this.ctx.currentTime + 0.05);
+                
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.05);
+            }
+
+            playUndo() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(420, this.ctx.currentTime + 0.1);
+                
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+        }
+
+        const ROWS = 6;
+        const COLS = 7;
+        const PLAYER1 = 1; // 赤 (常に先攻)
+        const PLAYER2 = 2; // 黄 (常に後攻)
+
+        let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        let currentPlayer = PLAYER1;
+        let gameMode = 'pvp'; // 'pvp' または 'ai'
+        let aiDifficulty = 'medium'; // 'easy', 'medium', 'hard'
+        let playerSide = PLAYER1; // AIモード時のプレイヤーの手番 (PLAYER1: 先攻/赤, PLAYER2: 後攻/黄)
+        let aiSide = PLAYER2;     // AIモード時のAIの手番
+        let history = []; // 履歴スタック
+        let isAnimating = false;
+        let isGameOver = false;
+        let hoveredCol = -1;
+
+        let scores = { p1: 0, p2: 0, ties: 0 };
+
+        const sound = new SoundManager();
+
+        // DOM要素
+        const boardGrid = document.getElementById('boardGrid');
+        const previewRow = document.getElementById('previewRow');
+        const statusBadge = document.getElementById('statusBadge');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const p1Card = document.getElementById('p1Card');
+        const p2Card = document.getElementById('p2Card');
+        const p1Label = document.getElementById('p1Label');
+        const p2Label = document.getElementById('p2Label');
+        const p1Sub = document.getElementById('p1Sub');
+        const p2Sub = document.getElementById('p2Sub');
+        const p1ScoreLabel = document.getElementById('p1ScoreLabel');
+        const p2ScoreLabel = document.getElementById('p2ScoreLabel');
+        const scoreP1 = document.getElementById('scoreP1');
+        const scoreP2 = document.getElementById('scoreP2');
+        const scoreTies = document.getElementById('scoreTies');
+        const modePvP = document.getElementById('modePvP');
+        const modeAI = document.getElementById('modeAI');
+        const aiSettingsContainer = document.getElementById('aiSettingsContainer');
+        const turnFirstBtn = document.getElementById('turnFirst');
+        const turnSecondBtn = document.getElementById('turnSecond');
+        const undoBtn = document.getElementById('undoBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const winnerModal = document.getElementById('winnerModal');
+        const winnerTitle = document.getElementById('winnerTitle');
+        const winnerSub = document.getElementById('winnerSub');
+        const winnerIconContainer = document.getElementById('winnerIconContainer');
+        const modalPlayAgainBtn = document.getElementById('modalPlayAgainBtn');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const rulesBtn = document.getElementById('rulesBtn');
+        const rulesModal = document.getElementById('rulesModal');
+        const closeRulesBtn = document.getElementById('closeRulesBtn');
+        const confirmRulesBtn = document.getElementById('confirmRulesBtn');
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        const soundIcon = document.getElementById('soundIcon');
+
+        function initApp() {
+            buildBoardUI();
+            setupEventListeners();
+            resetGame();
+        }
+
+        function buildBoardUI() {
+            boardGrid.innerHTML = '';
+            previewRow.innerHTML = '';
+
+            for (let c = 0; c < COLS; c++) {
+                const guide = document.createElement('div');
+                guide.id = `preview-col-${c}`;
+                guide.className = 'w-full h-full flex items-center justify-center opacity-0 transition-opacity duration-150';
+                
+                const disc = document.createElement('div');
+                disc.id = `preview-disc-${c}`;
+                disc.className = 'w-3/4 aspect-square rounded-full';
+                guide.appendChild(disc);
+                previewRow.appendChild(guide);
+            }
+
+            for (let c = 0; c < COLS; c++) {
+                const colEl = document.createElement('div');
+                colEl.id = `col-${c}`;
+                colEl.className = 'col-container relative flex flex-col justify-between h-full cursor-pointer hover:bg-white/5 rounded-xl transition-colors p-0.5 sm:p-1';
+                colEl.dataset.col = c;
+
+                for (let r = 0; r < ROWS; r++) {
+                    const cell = document.createElement('div');
+                    cell.id = `cell-${r}-${c}`;
+                    cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
+                    colEl.appendChild(cell);
+                }
+
+                boardGrid.appendChild(colEl);
+            }
+        }
+
+        function setupEventListeners() {
+            modePvP.addEventListener('click', () => setGameMode('pvp'));
+            modeAI.addEventListener('click', () => setGameMode('ai'));
+
+            // 先攻・後攻選択
+            turnFirstBtn.addEventListener('click', () => setPlayerSide(PLAYER1));
+            turnSecondBtn.addEventListener('click', () => setPlayerSide(PLAYER2));
+
+            // AI難易度ボタン
+            document.querySelectorAll('.diff-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    sound.playClick();
+                    document.querySelectorAll('.diff-btn').forEach(b => {
+                        b.className = 'diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white';
+                    });
+                    e.target.className = 'diff-btn px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition';
+                    aiDifficulty = e.target.dataset.diff;
+                    resetGame();
+                });
+            });
+
+            boardGrid.addEventListener('mousemove', handleBoardHover);
+            boardGrid.addEventListener('mouseleave', clearBoardHover);
+            boardGrid.addEventListener('click', handleBoardClick);
+
+            undoBtn.addEventListener('click', handleUndo);
+            resetBtn.addEventListener('click', () => { sound.playClick(); resetGame(); });
+
+            modalPlayAgainBtn.addEventListener('click', () => {
+                sound.playClick();
+                hideWinnerModal();
+                resetGame();
+            });
+            modalCloseBtn.addEventListener('click', () => {
+                sound.playClick();
+                hideWinnerModal();
+            });
+
+            rulesBtn.addEventListener('click', () => { sound.playClick(); showModal(rulesModal); });
+            closeRulesBtn.addEventListener('click', () => { sound.playClick(); hideModal(rulesModal); });
+            confirmRulesBtn.addEventListener('click', () => { sound.playClick(); hideModal(rulesModal); });
+
+            soundToggleBtn.addEventListener('click', () => {
+                sound.enabled = !sound.enabled;
+                soundIcon.className = sound.enabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark text-slate-500';
+            });
+        }
+
+        function setGameMode(mode) {
+            if (gameMode === mode) return;
+            sound.playClick();
+            gameMode = mode;
+
+            if (mode === 'pvp') {
+                modePvP.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-indigo-600 text-white shadow';
+                modeAI.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white';
+                aiSettingsContainer.classList.add('hidden');
+                aiSettingsContainer.classList.remove('flex');
+            } else {
+                modeAI.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-indigo-600 text-white shadow';
+                modePvP.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white';
+                aiSettingsContainer.classList.remove('hidden');
+                aiSettingsContainer.classList.add('flex');
+            }
+
+            scores = { p1: 0, p2: 0, ties: 0 };
+            updateScoreUI();
+            resetGame();
+        }
+
+        function setPlayerSide(side) {
+            if (playerSide === side) return;
+            sound.playClick();
+            playerSide = side;
+            aiSide = side === PLAYER1 ? PLAYER2 : PLAYER1;
+
+            if (side === PLAYER1) {
+                turnFirstBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-400 transition';
+                turnSecondBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white';
+            } else {
+                turnSecondBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition';
+                turnFirstBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white';
+            }
+
+            scores = { p1: 0, p2: 0, ties: 0 };
+            updateScoreUI();
+            resetGame();
+        }
+
+        function resetGame() {
+            board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            currentPlayer = PLAYER1; // PLAYER1が常に先攻(赤)
+            history = [];
+            isAnimating = false;
+            isGameOver = false;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = document.getElementById(`cell-${r}-${c}`);
+                    cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
+                    cell.innerHTML = '';
+                }
+            }
+
+            updateTurnUI();
+            updateUndoButtonState();
+            clearBoardHover();
+
+            // AIが先攻(PLAYER1)の場合、AIの第一手を即座にトリガー
+            if (gameMode === 'ai' && currentPlayer === aiSide) {
+                triggerAITurn();
+            }
+        }
+
+        function handleBoardHover(e) {
+            if (isAnimating || isGameOver) return;
+            if (gameMode === 'ai' && currentPlayer === aiSide) return;
+
+            const colEl = e.target.closest('.col-container');
+            if (!colEl) return;
+
+            const c = parseInt(colEl.dataset.col);
+            if (hoveredCol === c) return;
+
+            clearBoardHover();
+            hoveredCol = c;
+
+            const guide = document.getElementById(`preview-col-${c}`);
+            const disc = document.getElementById(`preview-disc-${c}`);
+            
+            if (guide && disc) {
+                guide.style.opacity = '1';
+                disc.className = `w-3/4 aspect-square rounded-full ${currentPlayer === PLAYER1 ? 'ghost-red' : 'ghost-yellow'}`;
+            }
+        }
+
+        function clearBoardHover() {
+            if (hoveredCol !== -1) {
+                const guide = document.getElementById(`preview-col-${hoveredCol}`);
+                if (guide) guide.style.opacity = '0';
+                hoveredCol = -1;
+            }
+        }
+
+        async function handleBoardClick(e) {
+            if (isAnimating || isGameOver) return;
+            if (gameMode === 'ai' && currentPlayer === aiSide) return;
+
+            const colEl = e.target.closest('.col-container');
+            if (!colEl) return;
+
+            const col = parseInt(colEl.dataset.col);
+            await executeMove(col);
+        }
+
+        async function executeMove(col) {
+            const row = getLowestEmptyRow(board, col);
+            if (row === -1) return;
+
+            isAnimating = true;
+            clearBoardHover();
+
+            sound.playDrop();
+            await animateDropDisc(col, row, currentPlayer);
+
+            board[row][col] = currentPlayer;
+            history.push({ row, col, player: currentPlayer });
+
+            renderDisc(row, col, currentPlayer);
+
+            const winInfo = checkWin(board);
+            if (winInfo) {
+                handleWin(winInfo);
+                return;
+            }
+
+            if (isBoardFull(board)) {
+                handleDraw();
+                return;
+            }
+
+            currentPlayer = currentPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+            updateTurnUI();
+            updateUndoButtonState();
+            isAnimating = false;
+
+            if (gameMode === 'ai' && currentPlayer === aiSide && !isGameOver) {
+                triggerAITurn();
+            }
+        }
+
+        function getLowestEmptyRow(b, col) {
+            for (let r = ROWS - 1; r >= 0; r--) {
+                if (b[r][col] === 0) return r;
+            }
+            return -1;
+        }
+
+        function animateDropDisc(col, row, player) {
+            return new Promise(resolve => {
+                const colEl = document.getElementById(`col-${col}`);
+                const targetCell = document.getElementById(`cell-${row}-${col}`);
+
+                const animDisc = document.createElement('div');
+                const discColorClass = player === PLAYER1 ? 'disc-red' : 'disc-yellow';
+                animDisc.className = `absolute z-30 rounded-full ${discColorClass}`;
+
+                const cellRect = targetCell.getBoundingClientRect();
+                const colRect = colEl.getBoundingClientRect();
+
+                const size = cellRect.width * 0.9;
+                animDisc.style.width = `${size}px`;
+                animDisc.style.height = `${size}px`;
+                animDisc.style.left = `${(colRect.width - size) / 2}px`;
+
+                const startY = -size;
+                const targetY = targetCell.offsetTop + (cellRect.height - size) / 2;
+
+                colEl.appendChild(animDisc);
+
+                const animation = animDisc.animate([
+                    { transform: `translateY(${startY}px)`, easing: 'cubic-bezier(0.45, 0, 0.55, 1)' },
+                    { transform: `translateY(${targetY}px)` }
+                ], {
+                    duration: 220 + row * 35,
+                    fill: 'forwards'
+                });
+
+                animation.onfinish = () => {
+                    colEl.removeChild(animDisc);
+                    resolve();
+                };
+            });
+        }
+
+        function renderDisc(row, col, player) {
+            const cell = document.getElementById(`cell-${row}-${col}`);
+            const disc = document.createElement('div');
+            disc.className = `w-[90%] h-[90%] rounded-full ${player === PLAYER1 ? 'disc-red' : 'disc-yellow'} transition-all transform scale-100`;
+            cell.appendChild(disc);
+        }
+
+        function checkWin(b) {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    const p = b[r][c];
+                    if (p !== 0 && p === b[r][c+1] && p === b[r][c+2] && p === b[r][c+3]) {
+                        return { winner: p, cells: [[r,c], [r,c+1], [r,c+2], [r,c+3]] };
+                    }
+                }
+            }
+            for (let r = 0; r < ROWS - 3; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const p = b[r][c];
+                    if (p !== 0 && p === b[r+1][c] && p === b[r+2][c] && p === b[r+3][c]) {
+                        return { winner: p, cells: [[r,c], [r+1,c], [r+2,c], [r+3,c]] };
+                    }
+                }
+            }
+            for (let r = 0; r < ROWS - 3; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    const p = b[r][c];
+                    if (p !== 0 && p === b[r+1][c+1] && p === b[r+2][c+2] && p === b[r+3][c+3]) {
+                        return { winner: p, cells: [[r,c], [r+1,c+1], [r+2,c+2], [r+3,c+3]] };
+                    }
+                }
+            }
+            for (let r = 3; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    const p = b[r][c];
+                    if (p !== 0 && p === b[r-1][c+1] && p === b[r-2][c+2] && p === b[r-3][c+3]) {
+                        return { winner: p, cells: [[r,c], [r-1,c+1], [r-2,c+2], [r-3,c+3]] };
+                    }
+                }
+            }
+            return null;
+        }
+
+        function isBoardFull(b) {
+            return b[0].every(cell => cell !== 0);
+        }
+
+        function handleWin(winInfo) {
+            isGameOver = true;
+            isAnimating = false;
+            sound.playWin();
+
+            winInfo.cells.forEach(([r, c]) => {
+                const cell = document.getElementById(`cell-${r}-${c}`);
+                const disc = cell.querySelector('div');
+                if (disc) {
+                    disc.classList.add('animate-win-pulse', 'z-20', 'ring-4', 'ring-white');
+                }
+            });
+
+            if (winInfo.winner === PLAYER1) {
+                scores.p1++;
+            } else {
+                scores.p2++;
+            }
+            updateScoreUI();
+            fireConfetti();
+
+            setTimeout(() => {
+                showWinnerModal(winInfo.winner);
+            }, 600);
+        }
+
+        function handleDraw() {
+            isGameOver = true;
+            isAnimating = false;
+            scores.ties++;
+            updateScoreUI();
+
+            setTimeout(() => {
+                winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-slate-800 text-slate-300';
+                winnerIconContainer.innerHTML = '<i class="fa-solid fa-handshake"></i>';
+                winnerTitle.textContent = '引き分け！';
+                winnerSub.textContent = '両者互角の素晴らしい勝負でした！';
+                showModal(winnerModal);
+            }, 400);
+        }
+
+        function showWinnerModal(winner) {
+            if (gameMode === 'pvp') {
+                if (winner === PLAYER1) {
+                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
+                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-rose-400"></i>';
+                    winnerTitle.textContent = 'プレイヤー1の勝利！';
+                    winnerSub.textContent = '赤コマが4つ並びました！';
+                } else {
+                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-float';
+                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-amber-300"></i>';
+                    winnerTitle.textContent = 'プレイヤー2の勝利！';
+                    winnerSub.textContent = '黄コマが4つ並びました！';
+                }
+            } else {
+                if (winner === playerSide) {
+                    const colorStr = playerSide === PLAYER1 ? '赤' : '黄';
+                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
+                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-rose-400"></i>';
+                    winnerTitle.textContent = 'あなたの勝利！';
+                    winnerSub.textContent = `${colorStr}コマで見事にAIに勝利しました！`;
+                } else {
+                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-float';
+                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-robot text-amber-300"></i>';
+                    winnerTitle.textContent = 'AIの勝利！';
+                    winnerSub.textContent = 'AIに先を越されてしまいました。もう一度挑戦しよう！';
+                }
+            }
+            showModal(winnerModal);
+        }
+
+        function fireConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        function updateTurnUI() {
+            if (gameMode === 'pvp') {
+                p1Label.textContent = 'プレイヤー1';
+                p2Label.textContent = 'プレイヤー2';
+                p1Sub.textContent = '赤コマ (先攻)';
+                p2Sub.textContent = '黄コマ (後攻)';
+                p1ScoreLabel.textContent = 'P1 (赤) 勝利';
+                p2ScoreLabel.textContent = 'P2 (黄) 勝利';
+            } else {
+                if (playerSide === PLAYER1) {
+                    p1Label.textContent = 'あなた';
+                    p2Label.textContent = 'AI';
+                    p1Sub.textContent = '赤コマ (先攻)';
+                    p2Sub.textContent = '黄コマ (後攻)';
+                    p1ScoreLabel.textContent = 'あなた 勝利';
+                    p2ScoreLabel.textContent = 'AI 勝利';
+                } else {
+                    p1Label.textContent = 'AI';
+                    p2Label.textContent = 'あなた';
+                    p1Sub.textContent = '赤コマ (先攻)';
+                    p2Sub.textContent = '黄コマ (後攻)';
+                    p1ScoreLabel.textContent = 'AI 勝利';
+                    p2ScoreLabel.textContent = 'あなた 勝利';
+                }
+            }
+
+            if (currentPlayer === PLAYER1) {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+                statusText.textContent = (gameMode === 'ai' && aiSide === PLAYER1) 
+                    ? 'AI（赤/先攻）思考中...' 
+                    : (gameMode === 'ai' ? 'あなたの番（赤/先攻）' : 'プレイヤー1（赤）の番');
+                statusBadge.className = 'px-3 py-1.5 rounded-full bg-rose-950/60 border border-rose-800/80 text-xs sm:text-sm font-bold flex items-center gap-2 text-rose-300';
+                p1Card.classList.remove('opacity-50', 'scale-95');
+                p1Card.classList.add('scale-105');
+                p2Card.classList.add('opacity-50', 'scale-95');
+                p2Card.classList.remove('scale-105');
+            } else {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                statusText.textContent = (gameMode === 'ai' && aiSide === PLAYER2) 
+                    ? 'AI（黄/後攻）思考中...' 
+                    : (gameMode === 'ai' ? 'あなたの番（黄/後攻）' : 'プレイヤー2（黄）の番');
+                statusBadge.className = 'px-3 py-1.5 rounded-full bg-amber-950/60 border border-amber-800/80 text-xs sm:text-sm font-bold flex items-center gap-2 text-amber-300';
+                p2Card.classList.remove('opacity-50', 'scale-95');
+                p2Card.classList.add('scale-105');
+                p1Card.classList.add('opacity-50', 'scale-95');
+                p1Card.classList.remove('scale-105');
+            }
+        }
+
+        function updateScoreUI() {
+            scoreP1.textContent = scores.p1;
+            scoreP2.textContent = scores.p2;
+            scoreTies.textContent = scores.ties;
+        }
+
+        function handleUndo() {
+            if (history.length === 0 || isAnimating || isGameOver) return;
+
+            sound.playUndo();
+
+            if (gameMode === 'pvp') {
+                const lastMove = history.pop();
+                board[lastMove.row][lastMove.col] = 0;
+                clearCellUI(lastMove.row, lastMove.col);
+                currentPlayer = lastMove.player;
+            } else {
+                // AIモード: プレイヤーの番に戻るまでアンドゥ
+                while (history.length > 0) {
+                    const lastMove = history.pop();
+                    board[lastMove.row][lastMove.col] = 0;
+                    clearCellUI(lastMove.row, lastMove.col);
+                    
+                    if (lastMove.player === playerSide) {
+                        break;
+                    }
+                }
+
+                // AIが先攻で盤面が空になった場合は、AIの初手を再計算
+                if (history.length === 0 && aiSide === PLAYER1) {
+                    currentPlayer = PLAYER1;
+                    isGameOver = false;
+                    updateTurnUI();
+                    updateUndoButtonState();
+                    triggerAITurn();
+                    return;
+                }
+
+                currentPlayer = playerSide;
+            }
+
+            isGameOver = false;
+            updateTurnUI();
+            updateUndoButtonState();
+        }
+
+        function clearCellUI(r, c) {
+            const cell = document.getElementById(`cell-${r}-${c}`);
+            cell.innerHTML = '';
+            cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
+        }
+
+        function updateUndoButtonState() {
+            undoBtn.disabled = history.length === 0 || isAnimating || isGameOver;
+        }
+
+        function triggerAITurn() {
+            isAnimating = true;
+            setTimeout(() => {
+                const aiCol = computeAIMove();
+                executeMove(aiCol);
+            }, Math.floor(Math.random() * 200) + 400);
+        }
+
+        function computeAIMove() {
+            const validCols = getValidColumns(board);
+            const me = aiSide;
+            const opp = playerSide;
+
+            if (aiDifficulty === 'easy') {
+                return validCols[Math.floor(Math.random() * validCols.length)];
+            }
+
+            if (aiDifficulty === 'medium') {
+                // AI自身の勝ち手
+                for (let col of validCols) {
+                    const row = getLowestEmptyRow(board, col);
+                    board[row][col] = me;
+                    if (checkWin(board)) {
+                        board[row][col] = 0;
+                        return col;
+                    }
+                    board[row][col] = 0;
+                }
+                // プレイヤーの勝ち手を阻止
+                for (let col of validCols) {
+                    const row = getLowestEmptyRow(board, col);
+                    board[row][col] = opp;
+                    if (checkWin(board)) {
+                        board[row][col] = 0;
+                        return col;
+                    }
+                    board[row][col] = 0;
+                }
+                // 中央優先
+                const preferOrder = [3, 2, 4, 1, 5, 0, 6];
+                for (let col of preferOrder) {
+                    if (validCols.includes(col)) return col;
+                }
+                return validCols[0];
+            }
+
+            // Hard: Minimax (深さ5)
+            let bestScore = -Infinity;
+            let bestCol = validCols[Math.floor(Math.random() * validCols.length)];
+
+            for (let col of validCols) {
+                const row = getLowestEmptyRow(board, col);
+                board[row][col] = me;
+                const score = minimax(board, 5, -Infinity, Infinity, false);
+                board[row][col] = 0;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCol = col;
+                }
+            }
+
+            return bestCol;
+        }
+
+        function getValidColumns(b) {
+            const cols = [];
+            for (let c = 0; c < COLS; c++) {
+                if (b[0][c] === 0) cols.push(c);
+            }
+            return cols;
+        }
+
+        function minimax(b, depth, alpha, beta, isMaximizing) {
+            const winInfo = checkWin(b);
+            if (winInfo) {
+                return winInfo.winner === aiSide ? 100000 + depth : -100000 - depth;
+            }
+            if (isBoardFull(b) || depth === 0) {
+                return evaluateBoard(b);
+            }
+
+            const validCols = getValidColumns(b);
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (let col of validCols) {
+                    const row = getLowestEmptyRow(b, col);
+                    b[row][col] = aiSide;
+                    const evalScore = minimax(b, depth - 1, alpha, beta, false);
+                    b[row][col] = 0;
+                    maxEval = Math.max(maxEval, evalScore);
+                    alpha = Math.max(alpha, evalScore);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (let col of validCols) {
+                    const row = getLowestEmptyRow(b, col);
+                    b[row][col] = playerSide;
+                    const evalScore = minimax(b, depth - 1, alpha, beta, true);
+                    b[row][col] = 0;
+                    minEval = Math.min(minEval, evalScore);
+                    beta = Math.min(beta, evalScore);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function evaluateBoard(b) {
+            let score = 0;
+            const me = aiSide;
+            const opp = playerSide;
+
+            // 中央列の加点
+            for (let r = 0; r < ROWS; r++) {
+                if (b[r][3] === me) score += 6;
+                else if (b[r][3] === opp) score -= 6;
+            }
+
+            const evaluateWindow = (window) => {
+                let meCount = window.filter(c => c === me).length;
+                let oppCount = window.filter(c => c === opp).length;
+                let emptyCount = window.filter(c => c === 0).length;
+
+                if (meCount === 4) return 1000;
+                if (meCount === 3 && emptyCount === 1) return 50;
+                if (meCount === 2 && emptyCount === 2) return 10;
+                if (oppCount === 3 && emptyCount === 1) return -80;
+                return 0;
+            };
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    score += evaluateWindow([b[r][c], b[r][c+1], b[r][c+2], b[r][c+3]]);
+                }
+            }
+            for (let r = 0; r < ROWS - 3; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    score += evaluateWindow([b[r][c], b[r+1][c], b[r+2][c], b[r+3][c]]);
+                }
+            }
+            for (let r = 0; r < ROWS - 3; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    score += evaluateWindow([b[r][c], b[r+1][c+1], b[r+2][c+2], b[r+3][c+3]]);
+                }
+            }
+            for (let r = 3; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    score += evaluateWindow([b[r][c], b[r-1][c+1], b[r-2][c+2], b[r-3][c+3]]);
+                }
+            }
+
+            return score;
+        }
+
+        function showModal(modalEl) {
+            modalEl.classList.remove('opacity-0', 'pointer-events-none');
+            modalEl.classList.add('opacity-100');
+            const card = modalEl.querySelector('div');
+            if (card) {
+                card.classList.remove('scale-90');
+                card.classList.add('scale-100');
+            }
+        }
+
+        function hideModal(modalEl) {
+            modalEl.classList.add('opacity-0', 'pointer-events-none');
+            modalEl.classList.remove('opacity-100');
+            const card = modalEl.querySelector('div');
+            if (card) {
+                card.classList.add('scale-90');
+                card.classList.remove('scale-100');
+            }
+        }
+
+        function hideWinnerModal() {
+            hideModal(winnerModal);
+        }
+
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
