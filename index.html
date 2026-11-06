@@ -8,8 +8,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Canvas Confetti CDN -->
+    <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <!-- Firebase SDK (v11.6.1) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.fb = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc
+        };
+    </script>
+
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -79,7 +92,7 @@
     <header class="w-full max-w-2xl flex justify-between items-center mb-3">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center shadow-lg shadow-rose-950/40">
-                <i class="fa-solid me-0 fa-table-cells text-xl text-slate-950"></i>
+                <i class="fa-solid fa-table-cells text-xl text-slate-950"></i>
             </div>
             <div>
                 <h1 class="text-xl sm:text-2xl font-black tracking-wider bg-gradient-to-r from-rose-400 via-amber-300 to-yellow-400 bg-clip-text text-transparent">
@@ -91,36 +104,39 @@
 
         <div class="flex items-center gap-2">
             <!-- 効果音トグル -->
-            <button id="soundToggleBtn" title="音量の切替" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center">
+            <button id="soundToggleBtn" title="音量の切替" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center cursor-pointer">
                 <i id="soundIcon" class="fa-solid fa-volume-high"></i>
             </button>
             <!-- ルール説明ボタン -->
-            <button id="rulesBtn" title="ルールを見る" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center">
+            <button id="rulesBtn" title="ルールを見る" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center cursor-pointer">
                 <i class="fa-solid fa-circle-question"></i>
             </button>
         </div>
     </header>
 
     <!-- モード ＆ 設定バー -->
-    <div class="w-full max-w-2xl bg-slate-900/90 backdrop-blur border border-slate-800 rounded-2xl p-2.5 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+    <div class="w-full max-w-2xl bg-slate-900/90 backdrop-blur border border-slate-800 rounded-2xl p-2.5 mb-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
         <!-- 対戦モード選択 -->
         <div class="flex bg-slate-950 p-1 rounded-xl w-full sm:w-auto">
-            <button id="modePvP" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-indigo-600 text-white shadow">
+            <button id="modePvP" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 bg-indigo-600 text-white shadow cursor-pointer">
                 <i class="fa-solid fa-user-group"></i> 2人対戦
             </button>
-            <button id="modeAI" class="flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white">
+            <button id="modeAI" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
                 <i class="fa-solid fa-robot"></i> VS AI
+            </button>
+            <button id="modeOnline" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
+                <i class="fa-solid fa-globe text-emerald-400"></i> オンライン
             </button>
         </div>
 
-        <!-- AI詳細設定 (AIモード時のみ表示) -->
+        <!-- AI詳細設定 (AIモード時表示) -->
         <div id="aiSettingsContainer" class="hidden flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
-            <!-- 手番選択（先攻 / 後攻） -->
+            <!-- 手番選択 -->
             <div class="flex items-center gap-1.5">
                 <span class="text-xs text-slate-400 font-medium">手番:</span>
                 <div class="flex bg-slate-950 p-1 rounded-xl">
-                    <button id="turnFirst" class="turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-400 transition">先攻 (赤)</button>
-                    <button id="turnSecond" class="turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white">後攻 (黄)</button>
+                    <button id="turnFirst" class="turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-400 transition cursor-pointer">先攻 (赤)</button>
+                    <button id="turnSecond" class="turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer">後攻 (黄)</button>
                 </div>
             </div>
 
@@ -128,16 +144,39 @@
             <div class="flex items-center gap-1.5">
                 <span class="text-xs text-slate-400 font-medium">難易度:</span>
                 <div class="flex bg-slate-950 p-1 rounded-xl">
-                    <button data-diff="easy" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white">かんたん</button>
-                    <button data-diff="medium" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition">ふつう</button>
-                    <button data-diff="hard" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white">むずかしい</button>
+                    <button data-diff="easy" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer">かんたん</button>
+                    <button data-diff="medium" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition cursor-pointer">ふつう</button>
+                    <button data-diff="hard" class="diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer">むずかしい</button>
                 </div>
             </div>
+        </div>
+
+        <!-- オンライン対戦設定 (オンラインモード時表示) -->
+        <div id="onlineSettingsContainer" class="hidden flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            <button id="btnCreateRoom" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow cursor-pointer">
+                <i class="fa-solid fa-plus"></i> 部屋を作る
+            </button>
+            <button id="btnJoinRoom" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer">
+                <i class="fa-solid fa-right-to-bracket"></i> 部屋に入る
+            </button>
+        </div>
+    </div>
+
+    <!-- オンラインルーム状態表示バー -->
+    <div id="onlineRoomBadge" class="hidden w-full max-w-2xl bg-emerald-950/40 border border-emerald-800/60 rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between text-xs text-emerald-300">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>部屋コード: <strong id="currentRoomCode" class="text-sm tracking-widest text-white bg-slate-950 px-2.5 py-0.5 rounded font-mono border border-emerald-800/80">------</strong></span>
+            <button id="btnCopyRoomCode" title="コードをコピー" class="ml-1 text-slate-400 hover:text-white p-1 cursor-pointer"><i class="fa-regular fa-copy"></i></button>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="onlineConnectionStatus" class="font-medium text-emerald-400">対戦相手を待っています...</span>
+            <button id="btnLeaveRoom" class="text-rose-400 hover:text-rose-300 font-semibold underline text-xs cursor-pointer">退室</button>
         </div>
     </div>
 
     <!-- メインコンテンツ領域 -->
-    <main class="w-full max-w-2xl flex flex-col items-center gap-4">
+    <main class="w-full max-w-2xl flex flex-col items-center gap-3">
         
         <!-- ターン indicator / ステータス表示 -->
         <div class="w-full flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-2xl px-4 py-3">
@@ -151,7 +190,7 @@
             </div>
 
             <!-- 現在のターン状態表示 -->
-            <div id="statusBadge" class="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 text-amber-300 animate-pulse">
+            <div id="statusBadge" class="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs sm:text-sm font-bold flex items-center gap-2 text-amber-300">
                 <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
                 <span id="statusText">プレイヤー1の番</span>
             </div>
@@ -198,23 +237,23 @@
 
         <!-- コントロールボタン -->
         <div class="flex items-center justify-center gap-3 mt-1 w-full">
-            <button id="undoBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs sm:text-sm font-semibold text-slate-300 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+            <button id="undoBtn" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs sm:text-sm font-semibold text-slate-300 transition flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                 <i class="fa-solid fa-rotate-left"></i> 待った (Undo)
             </button>
-            <button id="resetBtn" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-950/50 transition flex items-center gap-2">
+            <button id="resetBtn" class="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-950/50 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-arrows-rotate"></i> 盤面リセット
             </button>
         </div>
     </main>
 
     <!-- フッター -->
-    <footer class="mt-6 text-center text-slate-500 text-xs">
-        Connect Four Game &copy; 2026 - HTML5 Web Application
+    <footer class="mt-4 text-center text-slate-500 text-xs">
+        Connect Four Game &copy; 2026 - Online Multiplayer Edition
     </footer>
 
     <!-- 勝者モーダル -->
     <div id="winnerModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform scale-90 transition-transform duration-300 relative overflow-hidden" id="modalCard">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform scale-90 transition-transform duration-300 relative overflow-hidden" id="winnerModalCard">
             <div class="absolute -top-12 -left-12 w-32 h-32 bg-rose-500/20 rounded-full blur-2xl"></div>
             <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl"></div>
 
@@ -226,10 +265,10 @@
             <p id="winnerSub" class="text-sm text-slate-400 mb-6">4つ並びました！</p>
 
             <div class="flex flex-col gap-2">
-                <button id="modalPlayAgainBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 via-amber-500 to-yellow-500 text-slate-950 font-black text-sm shadow-lg hover:brightness-110 transition">
+                <button id="modalPlayAgainBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 via-amber-500 to-yellow-500 text-slate-950 font-black text-sm shadow-lg hover:brightness-110 transition cursor-pointer">
                     もう一度遊ぶ
                 </button>
-                <button id="modalCloseBtn" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition">
+                <button id="modalCloseBtn" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition cursor-pointer">
                     盤面を確認する
                 </button>
             </div>
@@ -238,28 +277,48 @@
 
     <!-- ルール解説モーダル -->
     <div id="rulesModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-300 text-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-300 text-sm transform scale-90 transition-transform duration-300">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                     <i class="fa-solid fa-book-open text-indigo-400"></i> ルール解説
                 </h3>
-                <button id="closeRulesBtn" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+                <button id="closeRulesBtn" class="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <ul class="space-y-2.5 list-disc list-inside text-slate-300">
                 <li>赤コマ（先攻）と黄コマ（後攻）が交互にコマを落とします。</li>
                 <li>コマは重力に従い、選択した列の一番下まで移動します。</li>
                 <li><strong class="text-rose-400">縦・横・斜め</strong>のいずれかにコマを<strong class="text-amber-300">4つ連続</strong>で並べた方の勝利です。</li>
                 <li>42マスすべて埋まっても4つ並ばない場合は引き分けとなります。</li>
-                <li>VS AIモードでは先攻（赤）か後攻（黄）かを自由に選ぶことができます。</li>
+                <li>オンラインモードでは6桁のコードを使って友達と対戦できます。</li>
             </ul>
-            <button id="confirmRulesBtn" class="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition">
+            <button id="confirmRulesBtn" class="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition cursor-pointer">
                 理解しました！
+            </button>
+        </div>
+    </div>
+
+    <!-- 部屋に入るモーダル -->
+    <div id="joinModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-200 transform scale-90 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-right-to-bracket text-emerald-400"></i> ルームに参加
+                </h3>
+                <button id="closeJoinModalBtn" class="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">相手から共有された6桁のルームコードを入力してください。</p>
+            
+            <input type="text" id="inputRoomCode" placeholder="例: 123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-white mb-4 focus:outline-none focus:border-emerald-500">
+            
+            <button id="btnConfirmJoin" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition cursor-pointer">
+                参加する
             </button>
         </div>
     </div>
 
     <!-- JavaScript ロジック -->
     <script>
+        // Web Audio API による効果音生成
         class SoundManager {
             constructor() {
                 this.ctx = null;
@@ -363,60 +422,121 @@
 
         let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         let currentPlayer = PLAYER1;
-        let gameMode = 'pvp'; // 'pvp' または 'ai'
-        let aiDifficulty = 'medium'; // 'easy', 'medium', 'hard'
-        let playerSide = PLAYER1; // AIモード時のプレイヤーの手番 (PLAYER1: 先攻/赤, PLAYER2: 後攻/黄)
-        let aiSide = PLAYER2;     // AIモード時のAIの手番
-        let history = []; // 履歴スタック
+        let gameMode = 'pvp'; // 'pvp', 'ai', 'online'
+        let aiDifficulty = 'medium'; 
+        let playerSide = PLAYER1; 
+        let aiSide = PLAYER2;     
+        let history = []; 
         let isAnimating = false;
         let isGameOver = false;
         let hoveredCol = -1;
 
         let scores = { p1: 0, p2: 0, ties: 0 };
-
         const sound = new SoundManager();
 
-        // DOM要素
-        const boardGrid = document.getElementById('boardGrid');
-        const previewRow = document.getElementById('previewRow');
-        const statusBadge = document.getElementById('statusBadge');
-        const statusDot = document.getElementById('statusDot');
-        const statusText = document.getElementById('statusText');
-        const p1Card = document.getElementById('p1Card');
-        const p2Card = document.getElementById('p2Card');
-        const p1Label = document.getElementById('p1Label');
-        const p2Label = document.getElementById('p2Label');
-        const p1Sub = document.getElementById('p1Sub');
-        const p2Sub = document.getElementById('p2Sub');
-        const p1ScoreLabel = document.getElementById('p1ScoreLabel');
-        const p2ScoreLabel = document.getElementById('p2ScoreLabel');
-        const scoreP1 = document.getElementById('scoreP1');
-        const scoreP2 = document.getElementById('scoreP2');
-        const scoreTies = document.getElementById('scoreTies');
-        const modePvP = document.getElementById('modePvP');
-        const modeAI = document.getElementById('modeAI');
-        const aiSettingsContainer = document.getElementById('aiSettingsContainer');
-        const turnFirstBtn = document.getElementById('turnFirst');
-        const turnSecondBtn = document.getElementById('turnSecond');
-        const undoBtn = document.getElementById('undoBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const winnerModal = document.getElementById('winnerModal');
-        const winnerTitle = document.getElementById('winnerTitle');
-        const winnerSub = document.getElementById('winnerSub');
-        const winnerIconContainer = document.getElementById('winnerIconContainer');
-        const modalPlayAgainBtn = document.getElementById('modalPlayAgainBtn');
-        const modalCloseBtn = document.getElementById('modalCloseBtn');
-        const rulesBtn = document.getElementById('rulesBtn');
-        const rulesModal = document.getElementById('rulesModal');
-        const closeRulesBtn = document.getElementById('closeRulesBtn');
-        const confirmRulesBtn = document.getElementById('confirmRulesBtn');
-        const soundToggleBtn = document.getElementById('soundToggleBtn');
-        const soundIcon = document.getElementById('soundIcon');
+        // Firebase & Online Game State
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let currentRoomId = null;
+        let myOnlineRole = null; // PLAYER1 (Host) or PLAYER2 (Guest)
+        let roomUnsubscribe = null;
+        let isOnlineInitialized = false;
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'connect-four-app';
+
+        // DOM Element Handlers
+        let boardGrid, previewRow, statusBadge, statusDot, statusText;
+        let p1Card, p2Card, p1Label, p2Label, p1Sub, p2Sub;
+        let p1ScoreLabel, p2ScoreLabel, scoreP1, scoreP2, scoreTies;
+        let modePvP, modeAI, modeOnline;
+        let aiSettingsContainer, onlineSettingsContainer, onlineRoomBadge;
+        let currentRoomCode, onlineConnectionStatus, btnCreateRoom, btnJoinRoom, btnLeaveRoom, btnCopyRoomCode;
+        let joinModal, closeJoinModalBtn, inputRoomCode, btnConfirmJoin;
+        let turnFirstBtn, turnSecondBtn, undoBtn, resetBtn;
+        let winnerModal, winnerTitle, winnerSub, winnerIconContainer, modalPlayAgainBtn, modalCloseBtn;
+        let rulesBtn, rulesModal, closeRulesBtn, confirmRulesBtn, soundToggleBtn, soundIcon;
 
         function initApp() {
+            cacheDOM();
             buildBoardUI();
             setupEventListeners();
+            initFirebase();
             resetGame();
+        }
+
+        function cacheDOM() {
+            boardGrid = document.getElementById('boardGrid');
+            previewRow = document.getElementById('previewRow');
+            statusBadge = document.getElementById('statusBadge');
+            statusDot = document.getElementById('statusDot');
+            statusText = document.getElementById('statusText');
+            p1Card = document.getElementById('p1Card');
+            p2Card = document.getElementById('p2Card');
+            p1Label = document.getElementById('p1Label');
+            p2Label = document.getElementById('p2Label');
+            p1Sub = document.getElementById('p1Sub');
+            p2Sub = document.getElementById('p2Sub');
+            p1ScoreLabel = document.getElementById('p1ScoreLabel');
+            p2ScoreLabel = document.getElementById('p2ScoreLabel');
+            scoreP1 = document.getElementById('scoreP1');
+            scoreP2 = document.getElementById('scoreP2');
+            scoreTies = document.getElementById('scoreTies');
+            modePvP = document.getElementById('modePvP');
+            modeAI = document.getElementById('modeAI');
+            modeOnline = document.getElementById('modeOnline');
+            aiSettingsContainer = document.getElementById('aiSettingsContainer');
+            onlineSettingsContainer = document.getElementById('onlineSettingsContainer');
+            onlineRoomBadge = document.getElementById('onlineRoomBadge');
+            currentRoomCode = document.getElementById('currentRoomCode');
+            onlineConnectionStatus = document.getElementById('onlineConnectionStatus');
+            btnCreateRoom = document.getElementById('btnCreateRoom');
+            btnJoinRoom = document.getElementById('btnJoinRoom');
+            btnLeaveRoom = document.getElementById('btnLeaveRoom');
+            btnCopyRoomCode = document.getElementById('btnCopyRoomCode');
+            joinModal = document.getElementById('joinModal');
+            closeJoinModalBtn = document.getElementById('closeJoinModalBtn');
+            inputRoomCode = document.getElementById('inputRoomCode');
+            btnConfirmJoin = document.getElementById('btnConfirmJoin');
+            turnFirstBtn = document.getElementById('turnFirst');
+            turnSecondBtn = document.getElementById('turnSecond');
+            undoBtn = document.getElementById('undoBtn');
+            resetBtn = document.getElementById('resetBtn');
+            winnerModal = document.getElementById('winnerModal');
+            winnerTitle = document.getElementById('winnerTitle');
+            winnerSub = document.getElementById('winnerSub');
+            winnerIconContainer = document.getElementById('winnerIconContainer');
+            modalPlayAgainBtn = document.getElementById('modalPlayAgainBtn');
+            modalCloseBtn = document.getElementById('modalCloseBtn');
+            rulesBtn = document.getElementById('rulesBtn');
+            rulesModal = document.getElementById('rulesModal');
+            closeRulesBtn = document.getElementById('closeRulesBtn');
+            confirmRulesBtn = document.getElementById('confirmRulesBtn');
+            soundToggleBtn = document.getElementById('soundToggleBtn');
+            soundIcon = document.getElementById('soundIcon');
+        }
+
+        async function initFirebase() {
+            try {
+                const config = typeof __firebase_config !== 'undefined' 
+                    ? JSON.parse(__firebase_config) 
+                    : { apiKey: "demo-api-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
+                
+                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore } = window.fb;
+                const app = initializeApp(config);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+                isOnlineInitialized = true;
+            } catch (err) {
+                console.error("Firebase Auth error:", err);
+            }
         }
 
         function buildBoardUI() {
@@ -455,35 +575,67 @@
         function setupEventListeners() {
             modePvP.addEventListener('click', () => setGameMode('pvp'));
             modeAI.addEventListener('click', () => setGameMode('ai'));
+            modeOnline.addEventListener('click', () => setGameMode('online'));
 
-            // 先攻・後攻選択
+            // オンライン関連ボタン
+            btnCreateRoom.addEventListener('click', createOnlineRoom);
+            btnJoinRoom.addEventListener('click', () => { sound.playClick(); showModal(joinModal); });
+            closeJoinModalBtn.addEventListener('click', () => { sound.playClick(); hideModal(joinModal); });
+            btnConfirmJoin.addEventListener('click', joinOnlineRoom);
+            btnLeaveRoom.addEventListener('click', leaveOnlineRoom);
+            btnCopyRoomCode.addEventListener('click', () => {
+                if (currentRoomId) {
+                    const text = currentRoomId;
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(text);
+                    } else {
+                        document.execCommand('copy');
+                    }
+                    btnCopyRoomCode.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i>';
+                    setTimeout(() => btnCopyRoomCode.innerHTML = '<i class="fa-regular fa-copy"></i>', 1500);
+                }
+            });
+
+            // 先攻・後攻選択 (VS AI)
             turnFirstBtn.addEventListener('click', () => setPlayerSide(PLAYER1));
             turnSecondBtn.addEventListener('click', () => setPlayerSide(PLAYER2));
 
-            // AI難易度ボタン
+            // AI難易度選択
             document.querySelectorAll('.diff-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     sound.playClick();
                     document.querySelectorAll('.diff-btn').forEach(b => {
-                        b.className = 'diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white';
+                        b.className = 'diff-btn px-2 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer';
                     });
-                    e.target.className = 'diff-btn px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition';
+                    e.target.className = 'diff-btn px-2 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition cursor-pointer';
                     aiDifficulty = e.target.dataset.diff;
                     resetGame();
                 });
             });
 
+            // 盤面インタラクション
             boardGrid.addEventListener('mousemove', handleBoardHover);
             boardGrid.addEventListener('mouseleave', clearBoardHover);
             boardGrid.addEventListener('click', handleBoardClick);
 
             undoBtn.addEventListener('click', handleUndo);
-            resetBtn.addEventListener('click', () => { sound.playClick(); resetGame(); });
+            resetBtn.addEventListener('click', () => {
+                sound.playClick();
+                if (gameMode === 'online' && currentRoomId) {
+                    resetOnlineRoom();
+                } else {
+                    resetGame();
+                }
+            });
 
             modalPlayAgainBtn.addEventListener('click', () => {
                 sound.playClick();
                 hideWinnerModal();
-                resetGame();
+                if (gameMode === 'online' && currentRoomId) {
+                    resetOnlineRoom();
+                } else {
+                    resetGame();
+                }
             });
             modalCloseBtn.addEventListener('click', () => {
                 sound.playClick();
@@ -503,24 +655,239 @@
         function setGameMode(mode) {
             if (gameMode === mode) return;
             sound.playClick();
+            
+            if (gameMode === 'online') {
+                leaveOnlineRoom();
+            }
+
             gameMode = mode;
 
-            if (mode === 'pvp') {
-                modePvP.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-indigo-600 text-white shadow';
-                modeAI.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white';
-                aiSettingsContainer.classList.add('hidden');
-                aiSettingsContainer.classList.remove('flex');
-            } else {
-                modeAI.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 bg-indigo-600 text-white shadow';
-                modePvP.className = 'flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-400 hover:text-white';
-                aiSettingsContainer.classList.remove('hidden');
-                aiSettingsContainer.classList.add('flex');
+            const inactiveBtn = 'flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white cursor-pointer';
+            const activeBtn = 'flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 bg-indigo-600 text-white shadow cursor-pointer';
+
+            modePvP.className = mode === 'pvp' ? activeBtn : inactiveBtn;
+            modeAI.className = mode === 'ai' ? activeBtn : inactiveBtn;
+            modeOnline.className = mode === 'online' ? activeBtn : inactiveBtn;
+
+            aiSettingsContainer.classList.toggle('hidden', mode !== 'ai');
+            aiSettingsContainer.classList.toggle('flex', mode === 'ai');
+
+            onlineSettingsContainer.classList.toggle('hidden', mode !== 'online');
+            onlineSettingsContainer.classList.toggle('flex', mode === 'online');
+
+            if (mode !== 'online') {
+                onlineRoomBadge.classList.add('hidden');
             }
 
             scores = { p1: 0, p2: 0, ties: 0 };
             updateScoreUI();
             resetGame();
         }
+
+        // --- オンライン対戦機能 (Firebase Firestore) ---
+
+        function getRoomRef(code) {
+            const { doc } = window.fb;
+            return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+        }
+
+        async function createOnlineRoom() {
+            if (!isOnlineInitialized || !currentUser) {
+                alert("通信初期化中です。数秒後にお試しください。");
+                return;
+            }
+            sound.playClick();
+
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            currentRoomId = code;
+            myOnlineRole = PLAYER1; // ホスト＝先攻（赤）
+
+            const roomRef = getRoomRef(code);
+            const initialBoard = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+
+            const roomData = {
+                status: 'waiting',
+                hostId: currentUser.uid,
+                p1Id: currentUser.uid,
+                p2Id: null,
+                board: JSON.stringify(initialBoard),
+                turn: PLAYER1,
+                lastMove: null,
+                winner: null
+            };
+
+            try {
+                const { setDoc } = window.fb;
+                await setDoc(roomRef, roomData);
+
+                currentRoomCode.textContent = code;
+                onlineRoomBadge.classList.remove('hidden');
+                onlineConnectionStatus.textContent = '対戦相手を待っています...';
+
+                subscribeRoom(code);
+                resetGame();
+            } catch (err) {
+                console.error("Room creation error:", err);
+                alert("ルーム作成に失敗しました。もう一度試してください。");
+            }
+        }
+
+        async function joinOnlineRoom() {
+            const code = inputRoomCode.value.trim();
+            if (!code || code.length !== 6) {
+                alert("6桁の数字コードを入力してください。");
+                return;
+            }
+            if (!isOnlineInitialized || !currentUser) {
+                alert("通信初期化中です。数秒後にお試しください。");
+                return;
+            }
+            sound.playClick();
+
+            const roomRef = getRoomRef(code);
+            try {
+                const { getDoc, updateDoc } = window.fb;
+                const snap = await getDoc(roomRef);
+
+                if (!snap.exists()) {
+                    alert('部屋が見つかりませんでした。コードを確認してください。');
+                    return;
+                }
+
+                const data = snap.data();
+                if (data.status !== 'waiting' && data.p2Id !== currentUser.uid) {
+                    alert('この部屋はすでに満員か、対戦が終了しています。');
+                    return;
+                }
+
+                currentRoomId = code;
+                myOnlineRole = PLAYER2; // 参加者＝後攻（黄）
+
+                await updateDoc(roomRef, {
+                    p2Id: currentUser.uid,
+                    status: 'playing'
+                });
+
+                hideModal(joinModal);
+                currentRoomCode.textContent = code;
+                onlineRoomBadge.classList.remove('hidden');
+                onlineConnectionStatus.textContent = '対戦中';
+
+                subscribeRoom(code);
+                resetGame();
+            } catch (err) {
+                console.error("Room join error:", err);
+                alert("ルーム参加に失敗しました。");
+            }
+        }
+
+        function subscribeRoom(code) {
+            if (roomUnsubscribe) roomUnsubscribe();
+
+            const roomRef = getRoomRef(code);
+            const { onSnapshot } = window.fb;
+
+            roomUnsubscribe = onSnapshot(roomRef, (docSnap) => {
+                if (!docSnap.exists()) {
+                    if (currentRoomId) {
+                        alert('部屋が退出または解散されました。');
+                        leaveOnlineRoom();
+                    }
+                    return;
+                }
+
+                const data = docSnap.data();
+                handleRoomUpdate(data);
+            }, (error) => {
+                console.error("Room sync error:", error);
+            });
+        }
+
+        function handleRoomUpdate(data) {
+            const newBoard = JSON.parse(data.board);
+
+            if (data.status === 'waiting') {
+                onlineConnectionStatus.textContent = '対戦相手を待っています...';
+            } else if (data.status === 'playing') {
+                onlineConnectionStatus.textContent = '対戦中';
+            }
+
+            // 最新の着手アニメーション＆反映
+            if (data.lastMove && (!history.length || history[history.length - 1].row !== data.lastMove.row || history[history.length - 1].col !== data.lastMove.col)) {
+                const { row, col, player } = data.lastMove;
+                board[row][col] = player;
+                history.push({ row, col, player });
+                sound.playDrop();
+                animateDropDisc(col, row, player).then(() => {
+                    renderDisc(row, col, player);
+                });
+            } else {
+                board = newBoard;
+                syncBoardUI();
+            }
+
+            currentPlayer = data.turn;
+            updateTurnUI();
+            updateUndoButtonState();
+
+            if (data.winner !== null && !isGameOver) {
+                isGameOver = true;
+                if (data.winner === 'draw') {
+                    handleDraw();
+                } else {
+                    const winInfo = checkWin(board);
+                    if (winInfo) handleWin(winInfo);
+                }
+            }
+        }
+
+        function syncBoardUI() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = document.getElementById(`cell-${r}-${c}`);
+                    if (cell) {
+                        cell.innerHTML = '';
+                        if (board[r][c] !== 0) {
+                            renderDisc(r, c, board[r][c]);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function leaveOnlineRoom() {
+            if (roomUnsubscribe) {
+                roomUnsubscribe();
+                roomUnsubscribe = null;
+            }
+            if (currentRoomId && currentUser) {
+                try {
+                    const roomRef = getRoomRef(currentRoomId);
+                    const { deleteDoc } = window.fb;
+                    await deleteDoc(roomRef);
+                } catch(e) {}
+            }
+            currentRoomId = null;
+            myOnlineRole = null;
+            onlineRoomBadge.classList.add('hidden');
+            resetGame();
+        }
+
+        async function resetOnlineRoom() {
+            if (!currentRoomId) return;
+            const roomRef = getRoomRef(currentRoomId);
+            const { updateDoc } = window.fb;
+            const initialBoard = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            await updateDoc(roomRef, {
+                board: JSON.stringify(initialBoard),
+                turn: PLAYER1,
+                lastMove: null,
+                winner: null,
+                status: 'playing'
+            });
+        }
+
+        // --- コネクトフォー コアロジック ---
 
         function setPlayerSide(side) {
             if (playerSide === side) return;
@@ -529,11 +896,11 @@
             aiSide = side === PLAYER1 ? PLAYER2 : PLAYER1;
 
             if (side === PLAYER1) {
-                turnFirstBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-400 transition';
-                turnSecondBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white';
+                turnFirstBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-400 transition cursor-pointer';
+                turnSecondBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer';
             } else {
-                turnSecondBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition';
-                turnFirstBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white';
+                turnSecondBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-400 transition cursor-pointer';
+                turnFirstBtn.className = 'turn-btn px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 transition hover:text-white cursor-pointer';
             }
 
             scores = { p1: 0, p2: 0, ties: 0 };
@@ -543,7 +910,7 @@
 
         function resetGame() {
             board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-            currentPlayer = PLAYER1; // PLAYER1が常に先攻(赤)
+            currentPlayer = PLAYER1;
             history = [];
             isAnimating = false;
             isGameOver = false;
@@ -551,8 +918,10 @@
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS; c++) {
                     const cell = document.getElementById(`cell-${r}-${c}`);
-                    cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
-                    cell.innerHTML = '';
+                    if (cell) {
+                        cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
+                        cell.innerHTML = '';
+                    }
                 }
             }
 
@@ -560,7 +929,6 @@
             updateUndoButtonState();
             clearBoardHover();
 
-            // AIが先攻(PLAYER1)の場合、AIの第一手を即座にトリガー
             if (gameMode === 'ai' && currentPlayer === aiSide) {
                 triggerAITurn();
             }
@@ -569,6 +937,7 @@
         function handleBoardHover(e) {
             if (isAnimating || isGameOver) return;
             if (gameMode === 'ai' && currentPlayer === aiSide) return;
+            if (gameMode === 'online' && currentPlayer !== myOnlineRole) return;
 
             const colEl = e.target.closest('.col-container');
             if (!colEl) return;
@@ -599,6 +968,7 @@
         async function handleBoardClick(e) {
             if (isAnimating || isGameOver) return;
             if (gameMode === 'ai' && currentPlayer === aiSide) return;
+            if (gameMode === 'online' && (currentPlayer !== myOnlineRole || !currentRoomId)) return;
 
             const colEl = e.target.closest('.col-container');
             if (!colEl) return;
@@ -611,6 +981,39 @@
             const row = getLowestEmptyRow(board, col);
             if (row === -1) return;
 
+            if (gameMode === 'online') {
+                if (!currentRoomId) return;
+                isAnimating = true;
+                clearBoardHover();
+
+                const nextBoard = board.map(r => [...r]);
+                nextBoard[row][col] = currentPlayer;
+
+                const winInfo = checkWin(nextBoard);
+                const isFull = isBoardFull(nextBoard);
+                let winnerVal = null;
+                if (winInfo) winnerVal = currentPlayer;
+                else if (isFull) winnerVal = 'draw';
+
+                const nextTurn = currentPlayer === PLAYER1 ? PLAYER2 : PLAYER1;
+
+                try {
+                    const roomRef = getRoomRef(currentRoomId);
+                    const { updateDoc } = window.fb;
+                    await updateDoc(roomRef, {
+                        board: JSON.stringify(nextBoard),
+                        turn: nextTurn,
+                        lastMove: { row, col, player: currentPlayer },
+                        winner: winnerVal
+                    });
+                } catch(err) {
+                    console.error("Online move update failed:", err);
+                    isAnimating = false;
+                }
+                return;
+            }
+
+            // ローカル/AIモード
             isAnimating = true;
             clearBoardHover();
 
@@ -654,6 +1057,7 @@
             return new Promise(resolve => {
                 const colEl = document.getElementById(`col-${col}`);
                 const targetCell = document.getElementById(`cell-${row}-${col}`);
+                if (!colEl || !targetCell) return resolve();
 
                 const animDisc = document.createElement('div');
                 const discColorClass = player === PLAYER1 ? 'disc-red' : 'disc-yellow';
@@ -681,7 +1085,9 @@
                 });
 
                 animation.onfinish = () => {
-                    colEl.removeChild(animDisc);
+                    if (colEl.contains(animDisc)) {
+                        colEl.removeChild(animDisc);
+                    }
                     resolve();
                 };
             });
@@ -689,6 +1095,8 @@
 
         function renderDisc(row, col, player) {
             const cell = document.getElementById(`cell-${row}-${col}`);
+            if (!cell) return;
+            cell.innerHTML = '';
             const disc = document.createElement('div');
             disc.className = `w-[90%] h-[90%] rounded-full ${player === PLAYER1 ? 'disc-red' : 'disc-yellow'} transition-all transform scale-100`;
             cell.appendChild(disc);
@@ -741,9 +1149,11 @@
 
             winInfo.cells.forEach(([r, c]) => {
                 const cell = document.getElementById(`cell-${r}-${c}`);
-                const disc = cell.querySelector('div');
-                if (disc) {
-                    disc.classList.add('animate-win-pulse', 'z-20', 'ring-4', 'ring-white');
+                if (cell) {
+                    const disc = cell.querySelector('div');
+                    if (disc) {
+                        disc.classList.add('animate-win-pulse', 'z-20', 'ring-4', 'ring-white');
+                    }
                 }
             });
 
@@ -776,7 +1186,19 @@
         }
 
         function showWinnerModal(winner) {
-            if (gameMode === 'pvp') {
+            if (gameMode === 'online') {
+                if (winner === myOnlineRole) {
+                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-float';
+                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-emerald-400"></i>';
+                    winnerTitle.textContent = 'あなたの勝利！';
+                    winnerSub.textContent = 'オンライン対戦で見事に勝利しました！';
+                } else {
+                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
+                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-heart-crack text-rose-400"></i>';
+                    winnerTitle.textContent = '敗北...';
+                    winnerSub.textContent = '相手に先を越されてしまいました。次回雪辱を果たそう！';
+                }
+            } else if (gameMode === 'pvp') {
                 if (winner === PLAYER1) {
                     winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
                     winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-rose-400"></i>';
@@ -823,7 +1245,7 @@
                 p2Sub.textContent = '黄コマ (後攻)';
                 p1ScoreLabel.textContent = 'P1 (赤) 勝利';
                 p2ScoreLabel.textContent = 'P2 (黄) 勝利';
-            } else {
+            } else if (gameMode === 'ai') {
                 if (playerSide === PLAYER1) {
                     p1Label.textContent = 'あなた';
                     p2Label.textContent = 'AI';
@@ -839,13 +1261,20 @@
                     p1ScoreLabel.textContent = 'AI 勝利';
                     p2ScoreLabel.textContent = 'あなた 勝利';
                 }
+            } else {
+                p1Label.textContent = myOnlineRole === PLAYER1 ? 'あなた (赤)' : '相手 (赤)';
+                p2Label.textContent = myOnlineRole === PLAYER2 ? 'あなた (黄)' : '相手 (黄)';
+                p1Sub.textContent = '赤コマ (先攻)';
+                p2Sub.textContent = '黄コマ (後攻)';
+                p1ScoreLabel.textContent = '赤 勝利';
+                p2ScoreLabel.textContent = '黄 勝利';
             }
 
             if (currentPlayer === PLAYER1) {
                 statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
-                statusText.textContent = (gameMode === 'ai' && aiSide === PLAYER1) 
-                    ? 'AI（赤/先攻）思考中...' 
-                    : (gameMode === 'ai' ? 'あなたの番（赤/先攻）' : 'プレイヤー1（赤）の番');
+                statusText.textContent = (gameMode === 'online') 
+                    ? (myOnlineRole === PLAYER1 ? 'あなたの番です！(赤)' : '相手の思考中...(赤)')
+                    : ((gameMode === 'ai' && aiSide === PLAYER1) ? 'AI（赤/先攻）思考中...' : '赤コマの番');
                 statusBadge.className = 'px-3 py-1.5 rounded-full bg-rose-950/60 border border-rose-800/80 text-xs sm:text-sm font-bold flex items-center gap-2 text-rose-300';
                 p1Card.classList.remove('opacity-50', 'scale-95');
                 p1Card.classList.add('scale-105');
@@ -853,9 +1282,9 @@
                 p2Card.classList.remove('scale-105');
             } else {
                 statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
-                statusText.textContent = (gameMode === 'ai' && aiSide === PLAYER2) 
-                    ? 'AI（黄/後攻）思考中...' 
-                    : (gameMode === 'ai' ? 'あなたの番（黄/後攻）' : 'プレイヤー2（黄）の番');
+                statusText.textContent = (gameMode === 'online')
+                    ? (myOnlineRole === PLAYER2 ? 'あなたの番です！(黄)' : '相手の思考中...(黄)')
+                    : ((gameMode === 'ai' && aiSide === PLAYER2) ? 'AI（黄/後攻）思考中...' : '黄コマの番');
                 statusBadge.className = 'px-3 py-1.5 rounded-full bg-amber-950/60 border border-amber-800/80 text-xs sm:text-sm font-bold flex items-center gap-2 text-amber-300';
                 p2Card.classList.remove('opacity-50', 'scale-95');
                 p2Card.classList.add('scale-105');
@@ -871,7 +1300,7 @@
         }
 
         function handleUndo() {
-            if (history.length === 0 || isAnimating || isGameOver) return;
+            if (history.length === 0 || isAnimating || isGameOver || gameMode === 'online') return;
 
             sound.playUndo();
 
@@ -881,7 +1310,6 @@
                 clearCellUI(lastMove.row, lastMove.col);
                 currentPlayer = lastMove.player;
             } else {
-                // AIモード: プレイヤーの番に戻るまでアンドゥ
                 while (history.length > 0) {
                     const lastMove = history.pop();
                     board[lastMove.row][lastMove.col] = 0;
@@ -892,7 +1320,6 @@
                     }
                 }
 
-                // AIが先攻で盤面が空になった場合は、AIの初手を再計算
                 if (history.length === 0 && aiSide === PLAYER1) {
                     currentPlayer = PLAYER1;
                     isGameOver = false;
@@ -912,12 +1339,14 @@
 
         function clearCellUI(r, c) {
             const cell = document.getElementById(`cell-${r}-${c}`);
-            cell.innerHTML = '';
-            cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
+            if (cell) {
+                cell.innerHTML = '';
+                cell.className = 'cell-hole w-full aspect-square rounded-full bg-slate-950 flex items-center justify-center relative transition-transform duration-200';
+            }
         }
 
         function updateUndoButtonState() {
-            undoBtn.disabled = history.length === 0 || isAnimating || isGameOver;
+            undoBtn.disabled = history.length === 0 || isAnimating || isGameOver || gameMode === 'online';
         }
 
         function triggerAITurn() {
@@ -938,7 +1367,6 @@
             }
 
             if (aiDifficulty === 'medium') {
-                // AI自身の勝ち手
                 for (let col of validCols) {
                     const row = getLowestEmptyRow(board, col);
                     board[row][col] = me;
@@ -948,7 +1376,6 @@
                     }
                     board[row][col] = 0;
                 }
-                // プレイヤーの勝ち手を阻止
                 for (let col of validCols) {
                     const row = getLowestEmptyRow(board, col);
                     board[row][col] = opp;
@@ -958,7 +1385,6 @@
                     }
                     board[row][col] = 0;
                 }
-                // 中央優先
                 const preferOrder = [3, 2, 4, 1, 5, 0, 6];
                 for (let col of preferOrder) {
                     if (validCols.includes(col)) return col;
@@ -1036,7 +1462,6 @@
             const me = aiSide;
             const opp = playerSide;
 
-            // 中央列の加点
             for (let r = 0; r < ROWS; r++) {
                 if (b[r][3] === me) score += 6;
                 else if (b[r][3] === opp) score -= 6;
