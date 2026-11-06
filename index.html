@@ -11,16 +11,19 @@
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
-    <!-- Firebase SDK (v11.6.1) -->
+    <!-- Firebase SDK (v11.6.1) as ES Module -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        window.fb = {
+        window.FirebaseSDK = {
             initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
             getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, deleteDoc
         };
+
+        // Notify app that Firebase SDK module is ready
+        window.dispatchEvent(new Event('firebase-sdk-ready'));
     </script>
 
     <script>
@@ -153,13 +156,19 @@
 
         <!-- オンライン対戦設定 (オンラインモード時表示) -->
         <div id="onlineSettingsContainer" class="hidden flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-            <button id="btnCreateRoom" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow cursor-pointer">
-                <i class="fa-solid fa-plus"></i> 部屋を作る
+            <button id="btnCreateRoom" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-50">
+                <i class="fa-solid fa-plus"></i> <span id="lblCreateRoom">部屋を作る</span>
             </button>
-            <button id="btnJoinRoom" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer">
+            <button id="btnJoinRoom" class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer disabled:opacity-50">
                 <i class="fa-solid fa-right-to-bracket"></i> 部屋に入る
             </button>
         </div>
+    </div>
+
+    <!-- 通知 / アラートメッセージエリア -->
+    <div id="toastMessage" class="hidden w-full max-w-2xl bg-amber-500/10 border border-amber-500/40 text-amber-300 rounded-xl px-4 py-2 mb-3 text-xs flex items-center justify-between">
+        <span id="toastText">メッセージ</span>
+        <button id="toastCloseBtn" class="text-amber-400 hover:text-white ml-2"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
     <!-- オンラインルーム状態表示バー -->
@@ -248,7 +257,7 @@
 
     <!-- フッター -->
     <footer class="mt-4 text-center text-slate-500 text-xs">
-        Connect Four Game &copy; 2026 - Online Multiplayer Edition
+        Connect Four Game &copy; Online Multiplayer Edition
     </footer>
 
     <!-- 勝者モーダル -->
@@ -289,7 +298,7 @@
                 <li>コマは重力に従い、選択した列の一番下まで移動します。</li>
                 <li><strong class="text-rose-400">縦・横・斜め</strong>のいずれかにコマを<strong class="text-amber-300">4つ連続</strong>で並べた方の勝利です。</li>
                 <li>42マスすべて埋まっても4つ並ばない場合は引き分けとなります。</li>
-                <li>オンラインモードでは6桁のコードを使って友達と対戦できます。</li>
+                <li>オンラインモードでは6桁のコードを使って友達とリアルタイム対戦できます。</li>
             </ul>
             <button id="confirmRulesBtn" class="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition cursor-pointer">
                 理解しました！
@@ -310,8 +319,8 @@
             
             <input type="text" id="inputRoomCode" placeholder="例: 123456" maxlength="6" inputmode="numeric" pattern="[0-9]*" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-center text-xl font-mono tracking-widest text-white mb-4 focus:outline-none focus:border-emerald-500">
             
-            <button id="btnConfirmJoin" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition cursor-pointer">
-                参加する
+            <button id="btnConfirmJoin" class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition cursor-pointer flex items-center justify-center gap-2">
+                <span>参加する</span>
             </button>
         </div>
     </div>
@@ -413,6 +422,25 @@
                 osc.start();
                 osc.stop(this.ctx.currentTime + 0.1);
             }
+
+            playError() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(110, this.ctx.currentTime + 0.08);
+                
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
         }
 
         const ROWS = 6;
@@ -441,9 +469,11 @@
         let currentRoomId = null;
         let myOnlineRole = null; // PLAYER1 (Host) or PLAYER2 (Guest)
         let roomUnsubscribe = null;
-        let isOnlineInitialized = false;
+        
+        let isOnlineReady = false;
+        let authPromise = null;
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'connect-four-app';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'connect4-app';
 
         // DOM Element Handlers
         let boardGrid, previewRow, statusBadge, statusDot, statusText;
@@ -451,8 +481,9 @@
         let p1ScoreLabel, p2ScoreLabel, scoreP1, scoreP2, scoreTies;
         let modePvP, modeAI, modeOnline;
         let aiSettingsContainer, onlineSettingsContainer, onlineRoomBadge;
-        let currentRoomCode, onlineConnectionStatus, btnCreateRoom, btnJoinRoom, btnLeaveRoom, btnCopyRoomCode;
+        let currentRoomCode, onlineConnectionStatus, btnCreateRoom, btnJoinRoom, btnLeaveRoom, btnCopyRoomCode, lblCreateRoom;
         let joinModal, closeJoinModalBtn, inputRoomCode, btnConfirmJoin;
+        let toastMessage, toastText, toastCloseBtn;
         let turnFirstBtn, turnSecondBtn, undoBtn, resetBtn;
         let winnerModal, winnerTitle, winnerSub, winnerIconContainer, modalPlayAgainBtn, modalCloseBtn;
         let rulesBtn, rulesModal, closeRulesBtn, confirmRulesBtn, soundToggleBtn, soundIcon;
@@ -461,7 +492,14 @@
             cacheDOM();
             buildBoardUI();
             setupEventListeners();
-            initFirebase();
+            
+            // Firebaseがロードされるのを待機・初期化開始
+            if (window.FirebaseSDK) {
+                initFirebase();
+            } else {
+                window.addEventListener('firebase-sdk-ready', initFirebase, { once: true });
+            }
+
             resetGame();
         }
 
@@ -491,6 +529,7 @@
             currentRoomCode = document.getElementById('currentRoomCode');
             onlineConnectionStatus = document.getElementById('onlineConnectionStatus');
             btnCreateRoom = document.getElementById('btnCreateRoom');
+            lblCreateRoom = document.getElementById('lblCreateRoom');
             btnJoinRoom = document.getElementById('btnJoinRoom');
             btnLeaveRoom = document.getElementById('btnLeaveRoom');
             btnCopyRoomCode = document.getElementById('btnCopyRoomCode');
@@ -498,6 +537,9 @@
             closeJoinModalBtn = document.getElementById('closeJoinModalBtn');
             inputRoomCode = document.getElementById('inputRoomCode');
             btnConfirmJoin = document.getElementById('btnConfirmJoin');
+            toastMessage = document.getElementById('toastMessage');
+            toastText = document.getElementById('toastText');
+            toastCloseBtn = document.getElementById('toastCloseBtn');
             turnFirstBtn = document.getElementById('turnFirst');
             turnSecondBtn = document.getElementById('turnSecond');
             undoBtn = document.getElementById('undoBtn');
@@ -516,27 +558,87 @@
             soundIcon = document.getElementById('soundIcon');
         }
 
-        async function initFirebase() {
-            try {
-                const config = typeof __firebase_config !== 'undefined' 
-                    ? JSON.parse(__firebase_config) 
-                    : { apiKey: "demo-api-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
-                
-                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore } = window.fb;
-                const app = initializeApp(config);
-                auth = getAuth(app);
-                db = getFirestore(app);
+        // --- Firebase & Auth Robust Handling ---
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
+        function initFirebase() {
+            if (authPromise) return authPromise;
+
+            authPromise = (async () => {
+                try {
+                    const config = typeof __firebase_config !== 'undefined' 
+                        ? JSON.parse(__firebase_config) 
+                        : { apiKey: "demo-api-key", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
+                    
+                    const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore } = window.FirebaseSDK;
+                    const app = initializeApp(config);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            currentUser = user;
+                            isOnlineReady = true;
+                        }
+                    });
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    currentUser = auth.currentUser;
+                    isOnlineReady = true;
+                    return true;
+                } catch (err) {
+                    console.error("Firebase init error:", err);
+                    isOnlineReady = false;
+                    return false;
                 }
-                currentUser = auth.currentUser;
-                isOnlineInitialized = true;
-            } catch (err) {
-                console.error("Firebase Auth error:", err);
+            })();
+
+            return authPromise;
+        }
+
+        // 確実なオンライン接続待機・割り込み初期化関数
+        async function ensureOnlineAuth() {
+            if (isOnlineReady && currentUser && db) return true;
+
+            showToast("オンラインサーバーに接続中...", "info");
+
+            const success = await initFirebase();
+            if (success && auth.currentUser) {
+                hideToast();
+                return true;
             }
+
+            // 再試行 (Retry)
+            try {
+                const { signInAnonymously } = window.FirebaseSDK;
+                await signInAnonymously(auth);
+                currentUser = auth.currentUser;
+                isOnlineReady = true;
+                hideToast();
+                return true;
+            } catch (retryErr) {
+                console.error("Retry auth failed:", retryErr);
+                sound.playError();
+                showToast("サーバーへの接続に失敗しました。ネット環境を確認して再試行してください。", "error");
+                return false;
+            }
+        }
+
+        function showToast(msg, type = "info") {
+            toastText.textContent = msg;
+            toastMessage.classList.remove('hidden', 'bg-amber-500/10', 'border-amber-500/40', 'text-amber-300', 'bg-rose-500/10', 'border-rose-500/40', 'text-rose-300');
+            if (type === "error") {
+                toastMessage.classList.add('bg-rose-500/10', 'border-rose-500/40', 'text-rose-300');
+            } else {
+                toastMessage.classList.add('bg-amber-500/10', 'border-amber-500/40', 'text-amber-300');
+            }
+        }
+
+        function hideToast() {
+            toastMessage.classList.add('hidden');
         }
 
         function buildBoardUI() {
@@ -577,9 +679,15 @@
             modeAI.addEventListener('click', () => setGameMode('ai'));
             modeOnline.addEventListener('click', () => setGameMode('online'));
 
+            toastCloseBtn.addEventListener('click', hideToast);
+
             // オンライン関連ボタン
             btnCreateRoom.addEventListener('click', createOnlineRoom);
-            btnJoinRoom.addEventListener('click', () => { sound.playClick(); showModal(joinModal); });
+            btnJoinRoom.addEventListener('click', async () => {
+                sound.playClick();
+                const ok = await ensureOnlineAuth();
+                if (ok) showModal(joinModal);
+            });
             closeJoinModalBtn.addEventListener('click', () => { sound.playClick(); hideModal(joinModal); });
             btnConfirmJoin.addEventListener('click', joinOnlineRoom);
             btnLeaveRoom.addEventListener('click', leaveOnlineRoom);
@@ -655,7 +763,8 @@
         function setGameMode(mode) {
             if (gameMode === mode) return;
             sound.playClick();
-            
+            hideToast();
+
             if (gameMode === 'online') {
                 leaveOnlineRoom();
             }
@@ -677,6 +786,9 @@
 
             if (mode !== 'online') {
                 onlineRoomBadge.classList.add('hidden');
+            } else {
+                // オンラインモード切替時にバックグラウンドで接続準備
+                ensureOnlineAuth();
             }
 
             scores = { p1: 0, p2: 0, ties: 0 };
@@ -687,16 +799,21 @@
         // --- オンライン対戦機能 (Firebase Firestore) ---
 
         function getRoomRef(code) {
-            const { doc } = window.fb;
+            const { doc } = window.FirebaseSDK;
             return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
         }
 
         async function createOnlineRoom() {
-            if (!isOnlineInitialized || !currentUser) {
-                alert("通信初期化中です。数秒後にお試しください。");
+            sound.playClick();
+            btnCreateRoom.disabled = true;
+            lblCreateRoom.textContent = "作成中...";
+
+            const isAuthReady = await ensureOnlineAuth();
+            if (!isAuthReady) {
+                btnCreateRoom.disabled = false;
+                lblCreateRoom.textContent = "部屋を作る";
                 return;
             }
-            sound.playClick();
 
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             currentRoomId = code;
@@ -717,7 +834,7 @@
             };
 
             try {
-                const { setDoc } = window.fb;
+                const { setDoc } = window.FirebaseSDK;
                 await setDoc(roomRef, roomData);
 
                 currentRoomCode.textContent = code;
@@ -728,35 +845,52 @@
                 resetGame();
             } catch (err) {
                 console.error("Room creation error:", err);
-                alert("ルーム作成に失敗しました。もう一度試してください。");
+                sound.playError();
+                showToast("部屋の作成に失敗しました。もう一度お試しください。", "error");
+            } finally {
+                btnCreateRoom.disabled = false;
+                lblCreateRoom.textContent = "部屋を作る";
             }
         }
 
         async function joinOnlineRoom() {
             const code = inputRoomCode.value.trim();
             if (!code || code.length !== 6) {
-                alert("6桁の数字コードを入力してください。");
+                sound.playError();
+                showToast("6桁の数字コードを入力してください。", "error");
                 return;
             }
-            if (!isOnlineInitialized || !currentUser) {
-                alert("通信初期化中です。数秒後にお試しください。");
-                return;
-            }
+
             sound.playClick();
+            btnConfirmJoin.disabled = true;
+            btnConfirmJoin.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 参加中...`;
+
+            const isAuthReady = await ensureOnlineAuth();
+            if (!isAuthReady) {
+                btnConfirmJoin.disabled = false;
+                btnConfirmJoin.innerHTML = `<span>参加する</span>`;
+                return;
+            }
 
             const roomRef = getRoomRef(code);
             try {
-                const { getDoc, updateDoc } = window.fb;
+                const { getDoc, updateDoc } = window.FirebaseSDK;
                 const snap = await getDoc(roomRef);
 
                 if (!snap.exists()) {
-                    alert('部屋が見つかりませんでした。コードを確認してください。');
+                    sound.playError();
+                    showToast("部屋が見つかりませんでした。コードを確認してください。", "error");
+                    btnConfirmJoin.disabled = false;
+                    btnConfirmJoin.innerHTML = `<span>参加する</span>`;
                     return;
                 }
 
                 const data = snap.data();
                 if (data.status !== 'waiting' && data.p2Id !== currentUser.uid) {
-                    alert('この部屋はすでに満員か、対戦が終了しています。');
+                    sound.playError();
+                    showToast("この部屋はすでに満員か、対戦が終了しています。", "error");
+                    btnConfirmJoin.disabled = false;
+                    btnConfirmJoin.innerHTML = `<span>参加する</span>`;
                     return;
                 }
 
@@ -777,7 +911,11 @@
                 resetGame();
             } catch (err) {
                 console.error("Room join error:", err);
-                alert("ルーム参加に失敗しました。");
+                sound.playError();
+                showToast("ルーム参加に失敗しました。", "error");
+            } finally {
+                btnConfirmJoin.disabled = false;
+                btnConfirmJoin.innerHTML = `<span>参加する</span>`;
             }
         }
 
@@ -785,12 +923,12 @@
             if (roomUnsubscribe) roomUnsubscribe();
 
             const roomRef = getRoomRef(code);
-            const { onSnapshot } = window.fb;
+            const { onSnapshot } = window.FirebaseSDK;
 
             roomUnsubscribe = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) {
                     if (currentRoomId) {
-                        alert('部屋が退出または解散されました。');
+                        showToast("部屋が退出または解散されました。", "info");
                         leaveOnlineRoom();
                     }
                     return;
@@ -863,7 +1001,7 @@
             if (currentRoomId && currentUser) {
                 try {
                     const roomRef = getRoomRef(currentRoomId);
-                    const { deleteDoc } = window.fb;
+                    const { deleteDoc } = window.FirebaseSDK;
                     await deleteDoc(roomRef);
                 } catch(e) {}
             }
@@ -876,7 +1014,7 @@
         async function resetOnlineRoom() {
             if (!currentRoomId) return;
             const roomRef = getRoomRef(currentRoomId);
-            const { updateDoc } = window.fb;
+            const { updateDoc } = window.FirebaseSDK;
             const initialBoard = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
             await updateDoc(roomRef, {
                 board: JSON.stringify(initialBoard),
@@ -999,7 +1137,7 @@
 
                 try {
                     const roomRef = getRoomRef(currentRoomId);
-                    const { updateDoc } = window.fb;
+                    const { updateDoc } = window.FirebaseSDK;
                     await updateDoc(roomRef, {
                         board: JSON.stringify(nextBoard),
                         turn: nextTurn,
