@@ -25,7 +25,7 @@
                     animation: {
                         'win-pulse': 'winPulse 1.2s infinite ease-in-out',
                         'float': 'float 3s infinite ease-in-out',
-                        'pop-emoji': 'popEmoji 1.5s ease-out forwards'
+                        'pop-emoji': 'popEmoji 1.6s ease-out forwards'
                     },
                     keyframes: {
                         winPulse: {
@@ -38,7 +38,7 @@
                         },
                         popEmoji: {
                             '0%': { opacity: '0', transform: 'scale(0.3) translateY(20px)' },
-                            '20%': { opacity: '1', transform: 'scale(1.3) translateY(-10px)' },
+                            '20%': { opacity: '1', transform: 'scale(1.2) translateY(-10px)' },
                             '80%': { opacity: '1', transform: 'scale(1) translateY(-30px)' },
                             '100%': { opacity: '0', transform: 'scale(0.8) translateY(-60px)' }
                         }
@@ -98,11 +98,16 @@
                 <h1 class="text-xl sm:text-2xl font-black tracking-wider bg-gradient-to-r from-rose-400 via-amber-300 to-yellow-400 bg-clip-text text-transparent">
                     コネクトフォー
                 </h1>
-                <p class="text-xs text-slate-400 hidden sm:block">WebRTC リアルタイムP2P対戦対応</p>
+                <p class="text-xs text-slate-400 hidden sm:block">プレイヤー名設定 ＆ オンライン対戦機能</p>
             </div>
         </div>
 
         <div class="flex items-center gap-2">
+            <!-- プレイヤー名変更ボタン -->
+            <button id="nameEditBtn" title="プレイヤー名を変更" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 transition flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
+                <i class="fa-solid fa-user-pen text-indigo-400"></i>
+                <span id="headerNameDisplay" class="max-w-[90px] sm:max-w-[130px] truncate">プレイヤー1</span>
+            </button>
             <!-- 効果音トグル -->
             <button id="soundToggleBtn" title="音量の切替" class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition flex items-center justify-center cursor-pointer">
                 <i id="soundIcon" class="fa-solid fa-volume-high"></i>
@@ -191,7 +196,7 @@
             <div id="p1Card" class="flex items-center gap-3 transition-transform duration-200">
                 <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-full disc-red flex-shrink-0"></div>
                 <div>
-                    <div class="text-xs sm:text-sm font-bold text-slate-200" id="p1Label">プレイヤー1</div>
+                    <div class="text-xs sm:text-sm font-bold text-slate-200 max-w-[100px] sm:max-w-[150px] truncate" id="p1Label">プレイヤー1</div>
                     <div class="text-[10px] sm:text-xs text-rose-400 font-semibold" id="p1Sub">赤コマ (先攻)</div>
                 </div>
             </div>
@@ -205,7 +210,7 @@
             <!-- プレイヤー2 / AI（黄コマ） -->
             <div id="p2Card" class="flex items-center gap-3 transition-transform duration-200 opacity-50">
                 <div class="text-right">
-                    <div class="text-xs sm:text-sm font-bold text-slate-200" id="p2Label">プレイヤー2</div>
+                    <div class="text-xs sm:text-sm font-bold text-slate-200 max-w-[100px] sm:max-w-[150px] truncate" id="p2Label">プレイヤー2</div>
                     <div class="text-[10px] sm:text-xs text-amber-400 font-semibold" id="p2Sub">黄コマ (後攻)</div>
                 </div>
                 <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-full disc-yellow flex-shrink-0"></div>
@@ -215,7 +220,7 @@
         <!-- スコアボード -->
         <div class="grid grid-cols-3 w-full gap-2 text-center">
             <div class="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2">
-                <div class="text-[10px] text-slate-400 font-medium" id="p1ScoreLabel">P1 (赤) 勝利</div>
+                <div class="text-[10px] text-slate-400 font-medium truncate px-1" id="p1ScoreLabel">P1 (赤) 勝利</div>
                 <div id="scoreP1" class="text-lg sm:text-xl font-black text-rose-400">0</div>
             </div>
             <div class="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2">
@@ -223,7 +228,7 @@
                 <div id="scoreTies" class="text-lg sm:text-xl font-black text-slate-300">0</div>
             </div>
             <div class="bg-slate-900/40 border border-slate-800/60 rounded-xl p-2">
-                <div class="text-[10px] text-slate-400 font-medium" id="p2ScoreLabel">P2 (黄) 勝利</div>
+                <div class="text-[10px] text-slate-400 font-medium truncate px-1" id="p2ScoreLabel">P2 (黄) 勝利</div>
                 <div id="scoreP2" class="text-lg sm:text-xl font-black text-amber-400">0</div>
             </div>
         </div>
@@ -268,6 +273,33 @@
         Connect Four Game &copy; WebRTC P2P Multiplayer Edition
     </footer>
 
+    <!-- プレイヤー名設定モーダル -->
+    <div id="nameModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-200 transform scale-90 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-indigo-400"></i> プレイヤー名の設定
+                </h3>
+                <button id="closeNameModalBtn" class="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">あなたの名前 / プレイヤー1名 (赤)</label>
+                    <input type="text" id="inputMyName" placeholder="プレイヤー1" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+                <div id="p2NameInputContainer">
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">プレイヤー2名 (黄 - ローカル2人対戦用)</label>
+                    <input type="text" id="inputP2Name" placeholder="プレイヤー2" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+            
+            <button id="btnSaveNames" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-sm shadow-lg transition cursor-pointer flex items-center justify-center gap-2">
+                <i class="fa-solid fa-check"></i> 保存する
+            </button>
+        </div>
+    </div>
+
     <!-- 勝者モーダル -->
     <div id="winnerModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl transform scale-90 transition-transform duration-300 relative overflow-hidden" id="winnerModalCard">
@@ -306,7 +338,7 @@
                 <li>コマは重力に従い、選択した列の一番下まで移動します。</li>
                 <li><strong class="text-rose-400">縦・横・斜め</strong>のいずれかにコマを<strong class="text-amber-300">4つ連続</strong>で並べた方の勝利です。</li>
                 <li>42マスすべて埋まっても4つ並ばない場合は引き分けとなります。</li>
-                <li>オンラインモードでは6桁の部屋コードでWebRTC直接通信により快適に対戦できます。</li>
+                <li>オンラインモードでは設定した名前がお互いの画面に同期されます。</li>
             </ul>
             <button id="confirmRulesBtn" class="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition cursor-pointer">
                 理解しました！
@@ -487,6 +519,11 @@
         let isGameOver = false;
         let hoveredCol = -1;
 
+        // 名前設定（localStorage保存）
+        let myName = localStorage.getItem('c4_p1_name') || 'プレイヤー1';
+        let p2LocalName = localStorage.getItem('c4_p2_name') || 'プレイヤー2';
+        let remotePlayerName = '相手';
+
         let scores = { p1: 0, p2: 0, ties: 0 };
         const sound = new SoundManager();
 
@@ -507,6 +544,7 @@
         let currentRoomCode, onlineConnectionStatus, roomStatusPing;
         let btnCreateRoom, btnJoinRoom, btnLeaveRoom, btnCopyRoomCode, lblCreateRoom;
         let joinModal, closeJoinModalBtn, inputRoomCode, btnConfirmJoin;
+        let nameModal, nameEditBtn, headerNameDisplay, closeNameModalBtn, inputMyName, inputP2Name, btnSaveNames, p2NameInputContainer;
         let toastMessage, toastText, toastIcon, toastCloseBtn;
         let turnFirstBtn, turnSecondBtn, undoBtn, resetBtn;
         let winnerModal, winnerTitle, winnerSub, winnerIconContainer, modalPlayAgainBtn, modalCloseBtn;
@@ -517,6 +555,7 @@
             cacheDOM();
             buildBoardUI();
             setupEventListeners();
+            updateNameUI();
             resetGame();
         }
 
@@ -556,6 +595,14 @@
             closeJoinModalBtn = document.getElementById('closeJoinModalBtn');
             inputRoomCode = document.getElementById('inputRoomCode');
             btnConfirmJoin = document.getElementById('btnConfirmJoin');
+            nameModal = document.getElementById('nameModal');
+            nameEditBtn = document.getElementById('nameEditBtn');
+            headerNameDisplay = document.getElementById('headerNameDisplay');
+            closeNameModalBtn = document.getElementById('closeNameModalBtn');
+            inputMyName = document.getElementById('inputMyName');
+            inputP2Name = document.getElementById('inputP2Name');
+            btnSaveNames = document.getElementById('btnSaveNames');
+            p2NameInputContainer = document.getElementById('p2NameInputContainer');
             toastMessage = document.getElementById('toastMessage');
             toastText = document.getElementById('toastText');
             toastIcon = document.getElementById('toastIcon');
@@ -577,6 +624,28 @@
             soundToggleBtn = document.getElementById('soundToggleBtn');
             soundIcon = document.getElementById('soundIcon');
             emojiOverlay = document.getElementById('emojiOverlay');
+        }
+
+        function updateNameUI() {
+            headerNameDisplay.textContent = myName || 'プレイヤー1';
+            inputMyName.value = myName || '';
+            inputP2Name.value = p2LocalName || '';
+            updateTurnUI();
+            updateScoreUI();
+        }
+
+        function getP1Name() {
+            if (gameMode === 'pvp') return myName || 'プレイヤー1';
+            if (gameMode === 'ai') return playerSide === PLAYER1 ? (myName || 'あなた') : 'AI';
+            if (gameMode === 'online') return myOnlineRole === PLAYER1 ? (myName || 'あなた') : (remotePlayerName || '相手');
+            return 'プレイヤー1';
+        }
+
+        function getP2Name() {
+            if (gameMode === 'pvp') return p2LocalName || 'プレイヤー2';
+            if (gameMode === 'ai') return playerSide === PLAYER2 ? (myName || 'あなた') : 'AI';
+            if (gameMode === 'online') return myOnlineRole === PLAYER2 ? (myName || 'あなた') : (remotePlayerName || '相手');
+            return 'プレイヤー2';
         }
 
         function showToast(msg, type = "info") {
@@ -639,6 +708,33 @@
 
             toastCloseBtn.addEventListener('click', hideToast);
 
+            // 名前変更モーダル
+            nameEditBtn.addEventListener('click', () => {
+                sound.playClick();
+                p2NameInputContainer.style.display = gameMode === 'pvp' ? 'block' : 'none';
+                showModal(nameModal);
+            });
+            closeNameModalBtn.addEventListener('click', () => { sound.playClick(); hideModal(nameModal); });
+            btnSaveNames.addEventListener('click', () => {
+                sound.playClick();
+                const newName = inputMyName.value.trim() || 'プレイヤー1';
+                const newP2Name = inputP2Name.value.trim() || 'プレイヤー2';
+
+                myName = newName;
+                p2LocalName = newP2Name;
+
+                localStorage.setItem('c4_p1_name', myName);
+                localStorage.setItem('c4_p2_name', p2LocalName);
+
+                if (gameMode === 'online' && isOnlineConnected) {
+                    sendPeerData({ type: 'NAME_SYNC', name: myName });
+                }
+
+                updateNameUI();
+                hideModal(nameModal);
+                showToast("名前を更新しました。", "success");
+            });
+
             // オンライン関連ボタン
             btnCreateRoom.addEventListener('click', createOnlineRoom);
             btnJoinRoom.addEventListener('click', () => {
@@ -666,8 +762,8 @@
                 btn.addEventListener('click', (e) => {
                     const emoji = e.target.dataset.emoji;
                     if (emoji) {
-                        showFloatingEmoji(emoji);
-                        sendPeerData({ type: 'EMOJI', emoji });
+                        showFloatingEmoji(emoji, myName);
+                        sendPeerData({ type: 'EMOJI', emoji, sender: myName });
                     }
                 });
             });
@@ -764,11 +860,11 @@
             }
 
             scores = { p1: 0, p2: 0, ties: 0 };
-            updateScoreUI();
+            updateNameUI();
             resetGame();
         }
 
-        // --- WebRTC (PeerJS) & BroadcastChannel P2P 通信機能 ---
+        // --- WebRTC (PeerJS) P2P 通信機能 ---
 
         const PEER_PREFIX = 'c4-p2p-room-';
 
@@ -785,7 +881,6 @@
 
             const fullPeerId = PEER_PREFIX + code;
 
-            // PeerJS インスタンス生成 (Google STUNサーバー明示指定)
             try {
                 peer = new Peer(fullPeerId, {
                     config: {
@@ -821,9 +916,8 @@
                     lblCreateRoom.textContent = "部屋を作る";
                     btnCreateRoom.disabled = false;
                     
-                    // すでにIDが存在する場合など
                     if (err.type === 'unavailable-id') {
-                        createOnlineRoom(); // 再生成
+                        createOnlineRoom();
                     } else {
                         showToast("通信接続の初期化に失敗しました。もう一度「部屋を作る」を押してください。", "error");
                     }
@@ -872,11 +966,9 @@
                     bindConnectionEvents();
                     setupBroadcastChannel(code);
 
-                    // 接続タイムアウト監視
                     setTimeout(() => {
                         if (!isOnlineConnected) {
-                            // Local tab Fallback test
-                            sendPeerData({ type: 'HANDSHAKE' });
+                            sendPeerData({ type: 'HANDSHAKE', name: myName });
                         }
                     }, 1200);
                 });
@@ -900,7 +992,7 @@
 
             peerConn.on('open', () => {
                 onPeerConnected();
-                sendPeerData({ type: 'HANDSHAKE' });
+                sendPeerData({ type: 'HANDSHAKE', name: myName });
             });
 
             peerConn.on('data', (data) => {
@@ -954,11 +1046,13 @@
             roomStatusPing.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping";
 
             showToast("対戦相手と接続されました！対局スタート！", "success");
-            resetGame();
+            
+            sendPeerData({ type: 'NAME_SYNC', name: myName });
 
             if (myOnlineRole === PLAYER1) {
                 sendPeerData({ type: 'SYNC_BOARD', board, turn: currentPlayer });
             }
+            resetGame();
         }
 
         function onPeerDisconnected() {
@@ -985,6 +1079,7 @@
             }
             currentRoomId = null;
             myOnlineRole = null;
+            remotePlayerName = '相手';
 
             onlineRoomBadge.classList.add('hidden');
             onlineReactionContainer.classList.add('hidden');
@@ -996,7 +1091,16 @@
 
             switch (data.type) {
                 case 'HANDSHAKE':
+                    if (data.name) remotePlayerName = data.name;
                     onPeerConnected();
+                    updateNameUI();
+                    break;
+                case 'NAME_SYNC':
+                    if (data.name) {
+                        remotePlayerName = data.name;
+                        updateNameUI();
+                        showToast(`相手の名前が「${remotePlayerName}」に更新されました。`, "info");
+                    }
                     break;
                 case 'MOVE':
                     if (data.player !== myOnlineRole) {
@@ -1005,14 +1109,14 @@
                     break;
                 case 'UNDO':
                     handleUndo();
-                    showToast("相手が「待った」を行いました。", "info");
+                    showToast(`${remotePlayerName} が「待った」を行いました。`, "info");
                     break;
                 case 'RESET':
                     resetGame();
                     showToast("盤面がリセットされました。", "info");
                     break;
                 case 'EMOJI':
-                    showFloatingEmoji(data.emoji);
+                    showFloatingEmoji(data.emoji, data.sender || remotePlayerName);
                     break;
                 case 'SYNC_BOARD':
                     board = data.board;
@@ -1055,14 +1159,18 @@
             isAnimating = false;
         }
 
-        function showFloatingEmoji(emoji) {
+        function showFloatingEmoji(emoji, senderName = null) {
             sound.playClick();
             const el = document.createElement('div');
-            el.className = 'text-6xl sm:text-7xl animate-pop-emoji absolute select-none';
-            el.textContent = emoji;
+            el.className = 'flex flex-col items-center animate-pop-emoji absolute select-none pointer-events-none z-50';
             
-            // Random horizontal position
-            const offset = (Math.random() - 0.5) * 200;
+            const sender = senderName || myName || 'あなた';
+            el.innerHTML = `
+                <span class="text-xs bg-slate-900/90 border border-slate-700 text-slate-200 px-2 py-0.5 rounded-full font-bold shadow-md mb-1">${sender}</span>
+                <span class="text-5xl sm:text-6xl">${emoji}</span>
+            `;
+
+            const offset = (Math.random() - 0.5) * 180;
             el.style.transform = `translateX(${offset}px)`;
 
             emojiOverlay.appendChild(el);
@@ -1070,7 +1178,7 @@
                 if (emojiOverlay.contains(el)) {
                     emojiOverlay.removeChild(el);
                 }
-            }, 1500);
+            }, 1600);
         }
 
         // --- コネクトフォー コアロジック ---
@@ -1090,7 +1198,7 @@
             }
 
             scores = { p1: 0, p2: 0, ties: 0 };
-            updateScoreUI();
+            updateNameUI();
             resetGame();
         }
 
@@ -1357,43 +1465,25 @@
         }
 
         function showWinnerModal(winner) {
+            const winnerName = winner === PLAYER1 ? getP1Name() : getP2Name();
+
             if (gameMode === 'online') {
                 if (winner === myOnlineRole) {
                     winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-float';
                     winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-emerald-400"></i>';
-                    winnerTitle.textContent = 'あなたの勝利！';
+                    winnerTitle.textContent = `${winnerName} の勝利！`;
                     winnerSub.textContent = 'オンライン対戦で見事に勝利しました！';
                 } else {
                     winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
                     winnerIconContainer.innerHTML = '<i class="fa-solid fa-heart-crack text-rose-400"></i>';
-                    winnerTitle.textContent = '敗北...';
+                    winnerTitle.textContent = `${winnerName} の勝利！`;
                     winnerSub.textContent = '相手に先を越されてしまいました。次回雪辱を果たそう！';
                 }
-            } else if (gameMode === 'pvp') {
-                if (winner === PLAYER1) {
-                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
-                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-rose-400"></i>';
-                    winnerTitle.textContent = 'プレイヤー1の勝利！';
-                    winnerSub.textContent = '赤コマが4つ並びました！';
-                } else {
-                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-float';
-                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-amber-300"></i>';
-                    winnerTitle.textContent = 'プレイヤー2の勝利！';
-                    winnerSub.textContent = '黄コマが4つ並びました！';
-                }
             } else {
-                if (winner === playerSide) {
-                    const colorStr = playerSide === PLAYER1 ? '赤' : '黄';
-                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-float';
-                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-rose-400"></i>';
-                    winnerTitle.textContent = 'あなたの勝利！';
-                    winnerSub.textContent = `${colorStr}コマで見事にAIに勝利しました！`;
-                } else {
-                    winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-float';
-                    winnerIconContainer.innerHTML = '<i class="fa-solid fa-robot text-amber-300"></i>';
-                    winnerTitle.textContent = 'AIの勝利！';
-                    winnerSub.textContent = 'AIに先を越されてしまいました。もう一度挑戦しよう！';
-                }
+                winnerIconContainer.className = 'w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center text-3xl shadow-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-float';
+                winnerIconContainer.innerHTML = '<i class="fa-solid fa-trophy text-amber-300"></i>';
+                winnerTitle.textContent = `${winnerName} の勝利！`;
+                winnerSub.textContent = '4つ連続でコマが並びました！';
             }
             showModal(winnerModal);
         }
@@ -1409,43 +1499,23 @@
         }
 
         function updateTurnUI() {
-            if (gameMode === 'pvp') {
-                p1Label.textContent = 'プレイヤー1';
-                p2Label.textContent = 'プレイヤー2';
-                p1Sub.textContent = '赤コマ (先攻)';
-                p2Sub.textContent = '黄コマ (後攻)';
-                p1ScoreLabel.textContent = 'P1 (赤) 勝利';
-                p2ScoreLabel.textContent = 'P2 (黄) 勝利';
-            } else if (gameMode === 'ai') {
-                if (playerSide === PLAYER1) {
-                    p1Label.textContent = 'あなた';
-                    p2Label.textContent = 'AI';
-                    p1Sub.textContent = '赤コマ (先攻)';
-                    p2Sub.textContent = '黄コマ (後攻)';
-                    p1ScoreLabel.textContent = 'あなた 勝利';
-                    p2ScoreLabel.textContent = 'AI 勝利';
-                } else {
-                    p1Label.textContent = 'AI';
-                    p2Label.textContent = 'あなた';
-                    p1Sub.textContent = '赤コマ (先攻)';
-                    p2Sub.textContent = '黄コマ (後攻)';
-                    p1ScoreLabel.textContent = 'AI 勝利';
-                    p2ScoreLabel.textContent = 'あなた 勝利';
-                }
-            } else {
-                p1Label.textContent = myOnlineRole === PLAYER1 ? 'あなた (赤)' : '相手 (赤)';
-                p2Label.textContent = myOnlineRole === PLAYER2 ? 'あなた (黄)' : '相手 (黄)';
-                p1Sub.textContent = '赤コマ (先攻)';
-                p2Sub.textContent = '黄コマ (後攻)';
-                p1ScoreLabel.textContent = '赤 勝利';
-                p2ScoreLabel.textContent = '黄 勝利';
-            }
+            const p1N = getP1Name();
+            const p2N = getP2Name();
+
+            p1Label.textContent = p1N;
+            p2Label.textContent = p2N;
+
+            p1Sub.textContent = '赤コマ (先攻)';
+            p2Sub.textContent = '黄コマ (後攻)';
+
+            p1ScoreLabel.textContent = `${p1N} (赤)`;
+            p2ScoreLabel.textContent = `${p2N} (黄)`;
 
             if (currentPlayer === PLAYER1) {
                 statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
                 statusText.textContent = (gameMode === 'online') 
-                    ? (myOnlineRole === PLAYER1 ? 'あなたの番です！(赤)' : '相手の思考中...(赤)')
-                    : ((gameMode === 'ai' && aiSide === PLAYER1) ? 'AI（赤/先攻）思考中...' : '赤コマの番');
+                    ? (myOnlineRole === PLAYER1 ? `${p1N} (赤) の番です！` : `${p1N} (赤) の思考中...`)
+                    : ((gameMode === 'ai' && aiSide === PLAYER1) ? 'AI (赤) 思考中...' : `${p1N} (赤) の番`);
                 statusBadge.className = 'px-3 py-1.5 rounded-full bg-rose-950/60 border border-rose-800/80 text-xs sm:text-sm font-bold flex items-center gap-2 text-rose-300';
                 p1Card.classList.remove('opacity-50', 'scale-95');
                 p1Card.classList.add('scale-105');
@@ -1454,8 +1524,8 @@
             } else {
                 statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
                 statusText.textContent = (gameMode === 'online')
-                    ? (myOnlineRole === PLAYER2 ? 'あなたの番です！(黄)' : '相手の思考中...(黄)')
-                    : ((gameMode === 'ai' && aiSide === PLAYER2) ? 'AI（黄/後攻）思考中...' : '黄コマの番');
+                    ? (myOnlineRole === PLAYER2 ? `${p2N} (黄) の番です！` : `${p2N} (黄) の思考中...`)
+                    : ((gameMode === 'ai' && aiSide === PLAYER2) ? 'AI (黄) 思考中...' : `${p2N} (黄) の番`);
                 statusBadge.className = 'px-3 py-1.5 rounded-full bg-amber-950/60 border border-amber-800/80 text-xs sm:text-sm font-bold flex items-center gap-2 text-amber-300';
                 p2Card.classList.remove('opacity-50', 'scale-95');
                 p2Card.classList.add('scale-105');
